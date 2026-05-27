@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mojioko -v1-/// // 音声解析端末</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #1c1e1a;
+  --panel: #252820;
+  --panel2: #2e3129;
+  --panel3: #1a1c18;
+  --rivet: #3a3d36;
+  --border: #3d4038;
+  --border2: #4e5247;
+  --amber: #d4860a;
+  --amber-dim: #7a4e08;
+  --amber-bright: #f5a623;
+  --green: #4caf50;
+  --green-dim: #2d6630;
+  --green-bright: #72ff76;
+  --red: #c0392b;
+  --red-bright: #ff4f3b;
+  --text: #c8cbbe;
+  --text-dim: #6b6f63;
+  --text-bright: #e8ead8;
+  --screw: #30332d;
+}
+
+body {
+  background: var(--bg);
+  background-image: 
+    repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.08) 3px, rgba(0,0,0,0.08) 4px),
+    repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px);
+  min-height: 100vh;
+  font-family: 'Barlow Condensed', sans-serif;
+  color: var(--text);
+  padding: 0;
+}
+
+/* Screw corners */
+.screw {
+  position: absolute;
+  width: 12px; height: 12px;
+  background: var(--screw);
+  border-radius: 50%;
+  border: 1px solid var(--border2);
+  z-index: 10;
+}
+.screw::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 10%;
+  width: 80%; height: 1px;
+  background: var(--border2);
+  transform: translateY(-50%) rotate(45deg);
+}
+.screw.tl { top: 8px; left: 8px; }
+.screw.tr { top: 8px; right: 8px; }
+.screw.bl { bottom: 8px; left: 8px; }
+.screw.br { bottom: 8px; right: 8px; }
+
+/* Header */
+.header {
+  background: var(--panel3);
+  border-bottom: 3px solid var(--amber);
+  padding: 16px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+}
+
+.header-left {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.sys-id {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.15em;
+  border: 1px solid var(--border);
+  padding: 3px 8px;
+}
+
+h1 {
+  font-size: 36px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--text-bright);
+  line-height: 1;
+}
+
+h1 .accent { color: var(--amber); }
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.led-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.led {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.5);
+}
+
+.led.green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.led.amber { background: var(--amber); }
+.led.red { background: var(--red); }
+.led.off { background: #1e2019; border-color: var(--border); }
+
+.model-tag {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--amber);
+  letter-spacing: 0.12em;
+  border-left: 2px solid var(--amber);
+  padding-left: 10px;
+}
+
+/* Main layout */
+.main {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 0;
+  min-height: calc(100vh - 75px);
+}
+
+/* Panel shared styles */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  position: relative;
+}
+
+.panel-header {
+  background: var(--panel3);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px 10px 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.panel-label {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.panel-label .num {
+  color: var(--amber-dim);
+  font-family: 'Share Tech Mono', monospace;
+  margin-right: 6px;
+}
+
+.panel-body { padding: 20px; }
+
+/* Left column: Input panel */
+.input-panel {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  border-right: 2px solid var(--border2);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Horizontal rule with label */
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0 14px;
+}
+
+.divider-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.divider-text {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+  font-family: 'Share Tech Mono', monospace;
+  white-space: nowrap;
+}
+
+/* File drop zone */
+.drop-zone {
+  border: 1px dashed var(--border2);
+  background: var(--panel3);
+  padding: 28px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.drop-zone::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--border2);
+  transition: background 0.2s;
+}
+
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--amber);
+  background: rgba(212, 134, 10, 0.05);
+}
+
+.drop-zone:hover::before, .drop-zone.drag-over::before {
+  background: var(--amber);
+}
+
+.drop-zone input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%; height: 100%;
+}
+
+.drop-icon {
+  font-size: 32px;
+  margin-bottom: 10px;
+  display: block;
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+
+.drop-zone h3 {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.drop-zone p {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+/* File loaded indicator */
+.file-loaded {
+  display: none;
+  background: var(--panel3);
+  border: 1px solid var(--green-dim);
+  padding: 12px 14px;
+  margin-top: 12px;
+  position: relative;
+}
+
+.file-loaded.visible { display: flex; align-items: center; gap: 10px; }
+.file-loaded-led { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+.file-loaded-info { flex: 1; overflow: hidden; }
+.file-loaded-name { font-size: 12px; font-weight: 600; color: var(--text-bright); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-loaded-size { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-dim); }
+
+.clear-btn {
+  background: none;
+  border: 1px solid var(--border2);
+  color: var(--text-dim);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.clear-btn:hover { border-color: var(--red); color: var(--red-bright); }
+
+/* Param rows */
+.param-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.param-row:last-child { border-bottom: none; }
+
+.param-label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.param-select {
+  background: var(--panel3);
+  border: 1px solid var(--border2);
+  color: var(--text-bright);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  padding: 5px 10px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  appearance: none;
+  min-width: 130px;
+}
+
+.param-select:focus { border-color: var(--amber); }
+
+/* API key field */
+.api-row {
+  background: var(--panel3);
+  border: 1px solid var(--border);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.api-tag {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: var(--amber-dim);
+  letter-spacing: 0.15em;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.api-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border2);
+  color: var(--text);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  padding: 3px 6px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.api-input:focus { border-color: var(--amber); }
+.api-input::placeholder { color: var(--text-dim); }
+
+.api-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  border: 1px solid var(--border2);
+  transition: all 0.3s;
+  flex-shrink: 0;
+}
+
+.api-dot.ok { background: var(--green); border-color: var(--green); box-shadow: 0 0 5px var(--green); }
+
+/* Execute button */
+.execute-btn {
+  width: 100%;
+  padding: 16px;
+  margin-top: 20px;
+  background: var(--panel3);
+  border: 2px solid var(--amber-dim);
+  color: var(--amber);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+
+.execute-btn::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(212,134,10,0.08), transparent);
+  transition: left 0.4s;
+}
+
+.execute-btn:hover::before { left: 100%; }
+
+.execute-btn:hover {
+  border-color: var(--amber-bright);
+  color: var(--amber-bright);
+  background: rgba(212,134,10,0.06);
+}
+
+.execute-btn:active { transform: scale(0.98); }
+
+.execute-btn:disabled {
+  border-color: var(--border2);
+  color: var(--text-dim);
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Right panels */
+.status-panel {
+  grid-column: 2;
+  grid-row: 1;
+  border-bottom: 1px solid var(--border);
+}
+
+.output-panel {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+/* CRT display */
+.crt-display {
+  background: #0a0d09;
+  border: 2px solid var(--border);
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #5c8a4a;
+  min-height: 80px;
+  position: relative;
+  overflow: hidden;
+}
+
+.crt-display::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,0), rgba(0,0,0,0) 2px, rgba(0,0,0,0.12) 2px, rgba(0,0,0,0.12) 4px);
+  pointer-events: none;
+}
+
+.crt-line { color: #3d5c30; }
+.crt-line.bright { color: #7ab860; }
+.crt-line.warn { color: var(--amber); }
+.crt-line.err { color: var(--red-bright); }
+.crt-line.ok { color: var(--green-bright); }
+
+/* Progress bar */
+.progress-track {
+  height: 6px;
+  background: var(--panel3);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin-bottom: 16px;
+  display: none;
+}
+
+.progress-track.visible { display: block; }
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--amber) 0px,
+    var(--amber) 8px,
+    var(--amber-dim) 8px,
+    var(--amber-dim) 12px
+  );
+  transition: width 0.4s;
+  animation: march 1s linear infinite;
+}
+
+@keyframes march {
+  from { background-position: 0 0; }
+  to { background-position: 24px 0; }
+}
+
+/* Status meters */
+.meter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.meter-box {
+  background: var(--panel3);
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  text-align: center;
+}
+
+.meter-val {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 18px;
+  color: var(--amber);
+  font-weight: 400;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.meter-label {
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+/* Output area */
+.output-area {
+  background: #0e110d;
+  border: 1px solid var(--border);
+  padding: 20px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  line-height: 1.9;
+  color: #a0b890;
+  min-height: 200px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  position: relative;
+}
+
+.output-area::before {
+  content: '> ';
+  color: var(--amber-dim);
+}
+
+/* Output toolbar */
+.output-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.tool-btn {
+  background: var(--panel3);
+  border: 1px solid var(--border2);
+  color: var(--text-dim);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  padding: 7px 14px;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  transition: all 0.15s;
+  text-transform: uppercase;
+}
+
+.tool-btn:hover { border-color: var(--amber-dim); color: var(--amber); }
+
+/* Translation result */
+.translation-block {
+  display: none;
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.translation-block.visible { display: block; }
+
+.translation-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.translation-tag {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: var(--green);
+  letter-spacing: 0.2em;
+  border: 1px solid var(--green-dim);
+  padding: 3px 8px;
+}
+
+.translation-output {
+  background: #0a100a;
+  border: 1px solid var(--green-dim);
+  padding: 16px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  line-height: 1.9;
+  color: #80a870;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 80px;
+}
+
+/* Error block */
+.error-block {
+  display: none;
+  background: rgba(192,57,43,0.06);
+  border: 1px solid var(--red);
+  padding: 12px 16px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--red-bright);
+  margin-top: 12px;
+}
+
+.error-block.visible { display: block; }
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--panel3);
+  border: 1px solid var(--green);
+  color: var(--green-bright);
+  padding: 10px 18px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: all 0.3s;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.toast.show { opacity: 1; transform: translateY(0); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--panel3); }
+::-webkit-scrollbar-thumb { background: var(--border2); }
+
+@media (max-width: 768px) {
+  .main { grid-template-columns: 1fr; grid-template-rows: auto; }
+  .input-panel { grid-column: 1; grid-row: 1; }
+  .status-panel { grid-column: 1; grid-row: 2; }
+  .output-panel { grid-column: 1; grid-row: 3; }
+  .meter-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="screw tl"></div>
+  <div class="screw tr"></div>
+  <div class="header-left">
+    <div class="sys-id">SYS-ID: WSP-2026-A1</div>
+    <h1 style="line-height:0.95">mojioko<br><span class="accent" style="font-size:0.55em; letter-spacing:0.12em">-v1-///</span></h1>
+  </div>
+  <div class="header-right">
+    <div class="led-row">
+      <div class="led green" title="POWER"></div>
+      <div class="led amber" id="procLed" title="PROCESSING"></div>
+      <div class="led off" title="ERROR"></div>
+    </div>
+    <div class="model-tag">MODEL: WHISPER-1 // v2026.05</div>
+  </div>
+</div>
+
+<div class="main">
+  <!-- ===== LEFT: INPUT PANEL ===== -->
+  <div class="input-panel panel">
+    <div class="screw tl"></div>
+    <div class="screw tr"></div>
+    <div class="panel-header">
+      <div class="panel-label"><span class="num">01 //</span> INPUT CONTROL</div>
+    </div>
+    <div class="panel-body" style="flex:1; overflow-y:auto;">
+
+      <!-- API Key -->
+      <div class="section-divider">
+        <div class="divider-line"></div>
+        <span class="divider-text">AUTH TOKEN</span>
+        <div class="divider-line"></div>
+      </div>
+      <div class="api-row">
+        <span class="api-tag">API_KEY</span>
+        <input class="api-input" type="password" id="apiKey" placeholder="sk-proj-..." oninput="updateApiDot()">
+        <div class="api-dot" id="apiDot"></div>
+      </div>
+
+      <!-- File Upload -->
+      <div class="section-divider">
+        <div class="divider-line"></div>
+        <span class="divider-text">AUDIO INPUT</span>
+        <div class="divider-line"></div>
+      </div>
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="audioFile" accept="audio/*,video/*,.mp3,.wav,.m4a,.mp4,.ogg,.flac,.webm" onchange="handleFile(this)">
+        <span class="drop-icon">📡</span>
+        <h3>Signal Drop Zone</h3>
+        <p>MP3 / WAV / M4A / MP4 / FLAC / OGG</p>
+        <p style="margin-top:4px; color: #3e4238;">MAX 25MB per OpenAI spec</p>
+      </div>
+      <div class="file-loaded" id="fileLoaded">
+        <div class="file-loaded-led"></div>
+        <div class="file-loaded-info">
+          <div class="file-loaded-name" id="fName">—</div>
+          <div class="file-loaded-size" id="fSize">—</div>
+        </div>
+        <button class="clear-btn" onclick="clearFile()">CLR</button>
+      </div>
+
+      <!-- Parameters -->
+      <div class="section-divider">
+        <div class="divider-line"></div>
+        <span class="divider-text">PARAMETERS</span>
+        <div class="divider-line"></div>
+      </div>
+
+      <div class="param-row">
+        <span class="param-label">LANG SELECT</span>
+        <select class="param-select" id="langSelect">
+          <option value="auto">AUTO-DETECT</option>
+          <option value="ja" selected>JPN // 日本語</option>
+          <option value="en">ENG // English</option>
+          <option value="zh">CHN // 中文</option>
+          <option value="ko">KOR // 한국어</option>
+          <option value="es">ESP // Español</option>
+          <option value="fr">FRE // Français</option>
+          <option value="de">GER // Deutsch</option>
+        </select>
+      </div>
+
+      <div class="param-row">
+        <span class="param-label">OUTPUT MODE</span>
+        <select class="param-select" id="outputMode">
+          <option value="transcribe">TRANSCRIBE</option>
+          <option value="translate">TRANSLATE → EN</option>
+        </select>
+      </div>
+
+      <div class="param-row">
+        <span class="param-label">RESPONSE FMT</span>
+        <select class="param-select" id="respFmt">
+          <option value="json">JSON</option>
+          <option value="text">PLAIN TEXT</option>
+          <option value="srt">SRT SUBTITLE</option>
+          <option value="vtt">VTT SUBTITLE</option>
+        </select>
+      </div>
+
+      <!-- Execute -->
+      <button class="execute-btn" id="executeBtn" onclick="execute()">
+        ▶ EXECUTE ANALYSIS
+      </button>
+
+      <div class="error-block" id="errorBlock"></div>
+
+    </div>
+  </div>
+
+  <!-- ===== RIGHT TOP: STATUS PANEL ===== -->
+  <div class="status-panel panel">
+    <div class="panel-header">
+      <div class="panel-label"><span class="num">02 //</span> SYSTEM MONITOR</div>
+    </div>
+    <div class="panel-body">
+
+      <div class="crt-display" id="crtDisplay">
+        <div class="crt-line">// Mojioko -v1- BOOT OK</div>
+        <div class="crt-line">// AWAITING AUDIO SIGNAL...</div>
+        <div class="crt-line bright">&gt; READY_</div>
+      </div>
+
+      <div class="progress-track" id="progressTrack">
+        <div class="progress-fill" id="progressFill" style="width:0%"></div>
+      </div>
+
+      <div class="meter-grid">
+        <div class="meter-box">
+          <div class="meter-val" id="mFileSize">—</div>
+          <div class="meter-label">FILE SIZE</div>
+        </div>
+        <div class="meter-box">
+          <div class="meter-val" id="mChars">—</div>
+          <div class="meter-label">CHAR COUNT</div>
+        </div>
+        <div class="meter-box">
+          <div class="meter-val" id="mWords">—</div>
+          <div class="meter-label">WORD COUNT</div>
+        </div>
+        <div class="meter-box">
+          <div class="meter-val" id="mStatus">IDLE</div>
+          <div class="meter-label">PROC STATUS</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== RIGHT BOTTOM: OUTPUT PANEL ===== -->
+  <div class="output-panel panel">
+    <div class="panel-header">
+      <div class="panel-label"><span class="num">03 //</span> OUTPUT TERMINAL</div>
+    </div>
+    <div class="panel-body">
+      <div class="output-area" id="outputArea">SIGNAL PENDING...</div>
+      <div class="output-toolbar">
+        <button class="tool-btn" onclick="copyResult()">[ COPY ]</button>
+        <button class="tool-btn" onclick="downloadResult()">[ DOWNLOAD .TXT ]</button>
+        <button class="tool-btn" onclick="clearOutput()">[ CLEAR ]</button>
+      </div>
+
+      <div class="translation-block" id="translationBlock">
+        <div class="translation-header">
+          <div class="translation-tag">EN TRANSLATION OUTPUT</div>
+        </div>
+        <div class="translation-output" id="translationOutput">—</div>
+        <div class="output-toolbar" style="margin-top:10px;">
+          <button class="tool-btn" onclick="copyTranslation()">[ COPY EN ]</button>
+          <button class="tool-btn" onclick="downloadTranslation()">[ DOWNLOAD EN.TXT ]</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let currentFile = null;
+let lastResult = '';
+let lastTranslation = '';
+
+// Drag & Drop
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+
+function handleFile(input) {
+  if (input.files[0]) loadFile(input.files[0]);
+}
+
+function loadFile(f) {
+  currentFile = f;
+  document.getElementById('fileLoaded').classList.add('visible');
+  document.getElementById('fName').textContent = f.name;
+  document.getElementById('fSize').textContent = fmtSize(f.size);
+  document.getElementById('mFileSize').textContent = fmtSize(f.size);
+  crtLog(`FILE LOADED: ${f.name}`, 'bright');
+  crtLog(`SIZE: ${fmtSize(f.size)} | TYPE: ${f.type || 'UNKNOWN'}`, '');
+}
+
+function clearFile() {
+  currentFile = null;
+  document.getElementById('audioFile').value = '';
+  document.getElementById('fileLoaded').classList.remove('visible');
+  document.getElementById('mFileSize').textContent = '—';
+  crtLog('FILE BUFFER CLEARED', 'warn');
+}
+
+function updateApiDot() {
+  const k = document.getElementById('apiKey').value.trim();
+  document.getElementById('apiDot').classList.toggle('ok', k.startsWith('sk-') && k.length > 24);
+}
+
+function fmtSize(b) {
+  if (b < 1024) return b + 'B';
+  if (b < 1048576) return (b/1024).toFixed(1) + 'KB';
+  return (b/1048576).toFixed(2) + 'MB';
+}
+
+function crtLog(line, type) {
+  const d = document.getElementById('crtDisplay');
+  const el = document.createElement('div');
+  el.className = 'crt-line' + (type ? ' ' + type : '');
+  el.textContent = line;
+  d.appendChild(el);
+  if (d.children.length > 8) d.removeChild(d.firstChild);
+}
+
+async function execute() {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if (!apiKey) { showError('ERR_401: API KEY NOT SET'); return; }
+  if (!currentFile) { showError('ERR_400: NO INPUT FILE DETECTED'); return; }
+
+  const lang = document.getElementById('langSelect').value;
+  const mode = document.getElementById('outputMode').value;
+  const fmt = document.getElementById('respFmt').value;
+
+  // UI → processing state
+  const btn = document.getElementById('executeBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ PROCESSING...';
+  document.getElementById('progressTrack').classList.add('visible');
+  document.getElementById('mStatus').textContent = 'PROC';
+  document.getElementById('errorBlock').classList.remove('visible');
+  document.getElementById('translationBlock').classList.remove('visible');
+  document.getElementById('procLed').style.boxShadow = '0 0 8px var(--amber)';
+  animProgress(0, 40, 800);
+  crtLog('>> TRANSMITTING AUDIO SIGNAL...', 'warn');
+  crtLog(`>> MODE: ${mode.toUpperCase()} | FMT: ${fmt.toUpperCase()} | LANG: ${lang.toUpperCase()}`, '');
+
+  const endpoint = mode === 'translate'
+    ? 'https://api.openai.com/v1/audio/translations'
+    : 'https://api.openai.com/v1/audio/transcriptions';
+
+  const form = new FormData();
+  form.append('file', currentFile);
+  form.append('model', 'whisper-1');
+  form.append('response_format', fmt);
+  if (mode === 'transcribe' && lang !== 'auto') form.append('language', lang);
+
+  try {
+    animProgress(40, 80, 1200);
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      body: form
+    });
+
+    animProgress(80, 100, 400);
+
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json(); msg = j.error?.message || msg; } catch(e) {}
+      throw new Error(msg);
+    }
+
+    let text;
+    if (fmt === 'json') {
+      const j = await res.json();
+      text = j.text || JSON.stringify(j, null, 2);
+    } else {
+      text = await res.text();
+    }
+
+    lastResult = text;
+    document.getElementById('outputArea').textContent = text;
+
+    const chars = text.length;
+    const words = text.trim().split(/\s+/).filter(Boolean).length;
+    document.getElementById('mChars').textContent = chars;
+    document.getElementById('mWords').textContent = words;
+    document.getElementById('mStatus').textContent = 'OK';
+
+    crtLog(`>> DECODE COMPLETE. CHARS:${chars} WORDS:${words}`, 'ok');
+    crtLog('>> SIGNAL WRITTEN TO OUTPUT TERMINAL', 'ok');
+
+    // If translate mode, show translation section with same result
+    if (mode === 'translate') {
+      lastTranslation = text;
+      document.getElementById('translationOutput').textContent = text;
+      document.getElementById('translationBlock').classList.add('visible');
+      document.getElementById('outputArea').textContent = '(TRANSLATE MODE: 英語翻訳結果は下部に表示)';
+    }
+
+    toast('処理完了 // DECODE SUCCESS');
+
+  } catch (err) {
+    document.getElementById('mStatus').textContent = 'FAIL';
+    crtLog('>> [CRITICAL] DECODE FAILURE', 'err');
+    crtLog(`>> ${err.message}`, 'err');
+    showError('ERR: ' + err.message);
+    document.getElementById('outputArea').textContent = '[SIGNAL LOST]\n' + err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶ EXECUTE ANALYSIS';
+    document.getElementById('procLed').style.boxShadow = '';
+    setTimeout(() => document.getElementById('progressTrack').classList.remove('visible'), 600);
+  }
+}
+
+function animProgress(from, to, dur) {
+  const fill = document.getElementById('progressFill');
+  const start = performance.now();
+  const tick = now => {
+    const p = Math.min((now - start) / dur, 1);
+    fill.style.width = (from + (to - from) * p) + '%';
+    if (p < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorBlock');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+function copyResult() {
+  if (!lastResult) { toast('データなし'); return; }
+  navigator.clipboard.writeText(lastResult);
+  toast('COPIED TO CLIPBOARD');
+}
+
+function copyTranslation() {
+  if (!lastTranslation) return;
+  navigator.clipboard.writeText(lastTranslation);
+  toast('EN TEXT COPIED');
+}
+
+function downloadResult() {
+  if (!lastResult) { toast('データなし'); return; }
+  dl(lastResult, 'transcription.txt');
+}
+
+function downloadTranslation() {
+  if (!lastTranslation) return;
+  dl(lastTranslation, 'translation_en.txt');
+}
+
+function dl(text, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  a.download = name;
+  a.click();
+}
+
+function clearOutput() {
+  lastResult = '';
+  lastTranslation = '';
+  document.getElementById('outputArea').textContent = 'SIGNAL PENDING...';
+  document.getElementById('translationBlock').classList.remove('visible');
+  document.getElementById('mChars').textContent = '—';
+  document.getElementById('mWords').textContent = '—';
+  document.getElementById('mStatus').textContent = 'IDLE';
+  crtLog('>> OUTPUT TERMINAL CLEARED', 'warn');
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = '// ' + msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+</script>
+</body>
+</html>

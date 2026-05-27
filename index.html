@@ -3,7 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>mojioko -v1-/// // 音声解析端末</title>
+<title>mojioko — PLAUDwebのURLシェアで文字起こし</title>
+<meta name="description" content="PLAUDの共有URLを貼るだけで音声を文字起こし。Groq Whisper搭載。">
+<meta property="og:title" content="PLAUDwebのURLシェアで文字起こし">
+<meta property="og:description" content="PLAUDの共有URLを貼るだけで音声を文字起こし。Groq Whisper搭載。">
+<meta property="og:url" content="https://mojiokov2.vercel.app/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="PLAUDwebのURLシェアで文字起こし">
+<meta name="twitter:description" content="PLAUDの共有URLを貼るだけで音声を文字起こし。Groq Whisper搭載。">
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -417,6 +425,63 @@ h1 .accent { color: var(--amber); }
   color: var(--text-dim);
   cursor: not-allowed;
   transform: none;
+}
+
+.execute-btn.ready {
+  border-color: var(--green);
+  color: var(--green-bright);
+  background: rgba(76,175,80,0.07);
+  animation: btn-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes btn-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(76,175,80,0.0); }
+  50% { box-shadow: 0 0 12px 3px rgba(76,175,80,0.35); }
+}
+
+/* Usage meter */
+.usage-meter {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  background: var(--panel3);
+  font-family: 'Share Tech Mono', monospace;
+}
+.usage-meter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 5px;
+}
+.usage-label {
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.15em;
+}
+.usage-numbers {
+  font-size: 10px;
+  color: var(--amber);
+  letter-spacing: 0.05em;
+}
+.usage-numbers.warn { color: #e67e22; }
+.usage-numbers.over { color: var(--red-bright); }
+.usage-bar-track {
+  width: 100%;
+  height: 4px;
+  background: var(--border);
+  margin-bottom: 5px;
+}
+.usage-bar-fill {
+  height: 100%;
+  background: var(--amber-dim);
+  transition: width 0.4s ease, background 0.3s;
+}
+.usage-bar-fill.warn { background: #e67e22; }
+.usage-bar-fill.over { background: var(--red-bright); }
+.usage-note {
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.05em;
 }
 
 /* Right panels */
@@ -954,7 +1019,7 @@ h1 .accent { color: var(--amber); }
   <div class="screw tr"></div>
   <div class="header-left">
     <div class="sys-id">SYS-ID: WSP-2026-A1</div>
-    <h1 style="line-height:0.95">mojioko<br><span class="accent" style="font-size:0.55em; letter-spacing:0.12em">-v1-///</span></h1>
+    <h1>mojioko</h1>
   </div>
   <div class="header-right">
     <div class="led-row">
@@ -962,7 +1027,7 @@ h1 .accent { color: var(--amber); }
       <div class="led amber" id="procLed" title="PROCESSING"></div>
       <div class="led off" title="ERROR"></div>
     </div>
-    <div class="model-tag">MODEL: WHISPER-1 // v2026.05</div>
+    <div class="model-tag">MODEL: WHISPER-LARGE-V3-TURBO // GROQ</div>
   </div>
 </div>
 
@@ -975,22 +1040,6 @@ h1 .accent { color: var(--amber); }
       <div class="panel-label"><span class="num">01 //</span> INPUT CONTROL</div>
     </div>
     <div class="panel-body" style="flex:1; overflow-y:auto;">
-
-      <!-- API Key -->
-      <div class="section-divider">
-        <div class="divider-line"></div>
-        <span class="divider-text">WHISPER TOKEN</span>
-        <div class="divider-line"></div>
-      </div>
-      <div class="api-row">
-        <span class="api-tag">API_KEY</span>
-        <input class="api-input" type="password" id="apiKey" placeholder="sk-proj-... または gsk_..." oninput="updateApiDot(); saveApiKey()">
-        <div class="api-dot" id="apiDot"></div>
-      </div>
-      <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-top:4px;">
-        <span id="apiSavedMsg" style="display:none; font-size:10px; color:var(--green);">✓ 保存しました</span>
-        <button onclick="saveApiKey(true)" style="background:rgba(76,175,80,0.15);border:1px solid var(--green);color:var(--green);cursor:pointer;font-size:10px;padding:3px 10px;border-radius:2px;font-family:inherit;">💾 SAVE</button>
-      </div>
 
       <!-- PLAUD Connect -->
       <div class="section-divider">
@@ -1145,7 +1194,7 @@ h1 .accent { color: var(--amber); }
       <div class="plaud-form hidden" id="plaudTokenForm">
         <div class="api-row">
           <span class="api-tag">TOKEN</span>
-          <input class="api-input" type="password" id="plaudTokenInput" placeholder="Bearer token..." oninput="updatePlaudDot(); savePlaudToken()">
+          <input class="api-input" type="password" id="plaudTokenInput" placeholder="トークンを貼り付け → 自動接続" oninput="updatePlaudDot(); savePlaudToken()" onpaste="setTimeout(autoConnectFromPaste,100)">
           <button onclick="togglePlaudToken()" id="plaudTokenToggle" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:0 4px;line-height:1;opacity:0.4;" title="トークンを表示">👁</button>
           <div class="api-dot" id="plaudDot"></div>
         </div>
@@ -1161,14 +1210,14 @@ h1 .accent { color: var(--amber); }
           <span id="plaudSavedMsg" style="display:none; font-size:10px; color:var(--green);">✓ 保存しました</span>
           <button onclick="savePlaudToken(true)" style="background:rgba(76,175,80,0.15);border:1px solid var(--green);color:var(--green);cursor:pointer;font-size:10px;padding:3px 10px;border-radius:2px;font-family:inherit;">💾 SAVE</button>
         </div>
+        <div style="margin-top:6px; text-align:right;">
+          <a href="help.html" target="_blank" style="font-size:10px; color:var(--text-dim); text-decoration:none;">📖 トークン取得ガイド</a>
+        </div>
       </div>
 
       <!-- Hidden bookmarklet anchor (kept for initBookmarklet) -->
       <div id="plaudBookmarkForm" style="display:none;"></div>
 
-      <div style="text-align:right; margin-bottom:4px;">
-        <a href="/help.html" target="_blank" style="color:var(--text-dim); font-size:10px; text-decoration:none;">📖 トークン取得ガイド →</a>
-      </div>
       <div class="plaud-status" id="plaudStatus">// AWAITING LOGIN</div>
       <div class="recordings-list" id="recordingsList"></div>
 
@@ -1185,6 +1234,17 @@ h1 .accent { color: var(--amber); }
         <p>MP3 / WAV / M4A / MP4 / FLAC / OGG</p>
         <p style="margin-top:4px; color: #3e4238;">MAX 25MB per OpenAI spec</p>
       </div>
+      <!-- URL Input -->
+      <div style="display:flex; align-items:center; gap:8px; margin:8px 0 6px;">
+        <div class="divider-line"></div>
+        <span style="font-size:9px; color:var(--text-dim); white-space:nowrap; font-family:'Share Tech Mono',monospace; letter-spacing:0.15em;">OR URL</span>
+        <div class="divider-line"></div>
+      </div>
+      <div class="api-row">
+        <span class="api-tag">URL</span>
+        <input class="api-input" type="url" id="audioUrl" placeholder="https://...mp3" onpaste="setTimeout(onUrlPaste,100)" oninput="onUrlInput()">
+      </div>
+
       <div class="file-loaded" id="fileLoaded">
         <div class="file-loaded-led"></div>
         <div class="file-loaded-info">
@@ -1235,8 +1295,20 @@ h1 .accent { color: var(--amber); }
 
       <!-- Execute -->
       <button class="execute-btn" id="executeBtn" onclick="execute()">
-        ▶ EXECUTE ANALYSIS
+        ▶ START
       </button>
+
+      <!-- Groq Free Plan usage meter -->
+      <div class="usage-meter" id="usageMeter">
+        <div class="usage-meter-header">
+          <span class="usage-label">GROQ FREE PLAN</span>
+          <span class="usage-numbers" id="usageNumbers">—</span>
+        </div>
+        <div class="usage-bar-track">
+          <div class="usage-bar-fill" id="usageBarFill"></div>
+        </div>
+        <div class="usage-note">上限 120分/日（UTC 0:00リセット）</div>
+      </div>
 
       <div class="error-block" id="errorBlock"></div>
 
@@ -1251,7 +1323,7 @@ h1 .accent { color: var(--amber); }
     <div class="panel-body">
 
       <div class="crt-display" id="crtDisplay">
-        <div class="crt-line">// Mojioko -v1- BOOT OK</div>
+        <div class="crt-line">// Mojioko BOOT OK</div>
         <div class="crt-line">// AWAITING AUDIO SIGNAL...</div>
         <div class="crt-line bright">&gt; READY_</div>
       </div>
@@ -1331,8 +1403,8 @@ function switchPlaudTab(tab) {
 }
 
 function initBookmarklet() {
-  const returnUrl = window.location.origin + window.location.pathname;
-  const js = `javascript:(function(){try{var k=Object.keys(localStorage).find(function(x){return x.includes('workspaceList')});if(!k){alert('PLAUDにログインしてください');return;}var ws=JSON.parse(localStorage[k]||'[]')[0];if(ws&&ws.workspaceToken){var u='${returnUrl}#plaud='+encodeURIComponent(ws.workspaceToken)+'&dom='+encodeURIComponent(ws.domain||'');var w=window.open(u,'_blank');if(!w){location.href=u;}}else{alert('PLAUDにGoogleログインしてから再度実行してください');}}catch(e){alert('Error: '+e);}})();`;
+  // promptでトークンを表示 → ユーザーがコピーしてmojiokoのTOKENタブに貼るだけ
+  const js = `javascript:(function(){try{var k=Object.keys(localStorage).find(function(x){return x.includes('workspaceList')});if(!k){alert('PLAUDにログインしてください');return;}var ws=JSON.parse(localStorage[k]||'[]')[0];if(ws&&ws.workspaceToken){var t=ws.workspaceToken+'||'+(ws.domain||'');prompt('✅ コピーしてmojiokoのTOKENタブに貼り付け:',t);}else{alert('PLAUDにGoogleログインしてから実行してください');}}catch(e){alert('Error: '+e);}})();`;
   const el = document.getElementById('bookmarkletLink');
   if (el) el.href = js;
   const inp = document.getElementById('bookmarkletUrlInput');
@@ -1428,6 +1500,28 @@ function copyPlaudToken() {
     btn.textContent = '✓ COPIED';
     setTimeout(() => { btn.textContent = 'COPY'; }, 2000);
   });
+}
+
+function autoConnectFromPaste() {
+  const raw = document.getElementById('plaudTokenInput').value.trim();
+  if (!raw) return;
+  // bookmarkletが出力する「token||domain」形式を自動解析
+  if (raw.includes('||')) {
+    const [token, domain] = raw.split('||');
+    plaudToken = token.trim();
+    plaudApiBase = domain.trim() || 'https://api-apne1.plaud.ai';
+    document.getElementById('plaudTokenInput').value = token.trim();
+    // regionセレクトを合わせる
+    const regionSel = document.getElementById('plaudRegionToken');
+    if (plaudApiBase.includes('euc1')) regionSel.value = 'eu';
+    else if (plaudApiBase.includes('apne1')) regionSel.value = 'apne1';
+    else regionSel.value = 'us';
+    savePlaudToken();
+    connectPlaud();
+    return;
+  }
+  // 普通のトークンならそのままLINK
+  if (raw.length > 20) connectPlaud();
 }
 
 function savePlaudToken(showMsg) {
@@ -1723,8 +1817,8 @@ async function loadForWhisper(fileId, fileName) {
     document.getElementById('mFileSize').textContent = fmtSize(currentFile.size);
     document.getElementById('mStatus').textContent = 'READY';
     crtLog(`AUDIO LOADED: ${fmtSize(currentFile.size)}`, 'ok');
-    crtLog(`>> READY — PRESS EXECUTE FOR WHISPER`, 'bright');
-    toast(`音声ロード完了 // EXECUTE を押してください`);
+    crtLog(`>> READY — PRESS START FOR WHISPER`, 'bright');
+    toast(`音声ロード完了 // START を押してください`);
   } catch(e) {
     document.getElementById('mStatus').textContent = 'FAIL';
     crtLog(`AUDIO ERR: ${e.message}`, 'err');
@@ -1739,7 +1833,6 @@ if (!window.location.hash.includes('plaud=')) {
   loadPlaudToken(); // ハッシュがない時だけ保存済みトークンを使う
 }
 initFromHash();
-loadApiKey();
 
 // Drag & Drop
 const dz = document.getElementById('dropZone');
@@ -1751,6 +1844,58 @@ dz.addEventListener('drop', e => {
   const f = e.dataTransfer.files[0];
   if (f) loadFile(f);
 });
+
+// ── Groq Free Plan 使用量トラッカー ──────────────────────
+const GROQ_DAILY_LIMIT = 7200; // 秒（120分）
+
+function _usageKey() {
+  // UTC日付キー（Groqのリセットタイミングに合わせてUTC基準）
+  return 'groq_used_' + new Date().toISOString().slice(0, 10);
+}
+function getUsedSeconds() {
+  return parseFloat(localStorage.getItem(_usageKey()) || '0');
+}
+function addUsedSeconds(secs) {
+  if (!secs || secs <= 0) return;
+  const key = _usageKey();
+  const current = parseFloat(localStorage.getItem(key) || '0');
+  localStorage.setItem(key, String(current + secs));
+  updateUsageMeter();
+}
+function updateUsageMeter() {
+  const used = getUsedSeconds();
+  const pct = Math.min(used / GROQ_DAILY_LIMIT * 100, 100);
+  const remaining = Math.max(GROQ_DAILY_LIMIT - used, 0);
+
+  const fmtMin = s => {
+    const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+    return m > 0 ? `${m}m${sec > 0 ? sec + 's' : ''}` : `${sec}s`;
+  };
+
+  const numEl  = document.getElementById('usageNumbers');
+  const barEl  = document.getElementById('usageBarFill');
+  numEl.textContent = `使用 ${fmtMin(used)} / 残り ${fmtMin(remaining)}`;
+
+  const warn = pct >= 70;
+  const over = pct >= 95;
+  numEl.className   = 'usage-numbers' + (over ? ' over' : warn ? ' warn' : '');
+  barEl.className   = 'usage-bar-fill' + (over ? ' over' : warn ? ' warn' : '');
+  barEl.style.width = pct + '%';
+}
+
+// ファイルから音声尺（秒）を取得
+async function getAudioDuration(file) {
+  return new Promise(resolve => {
+    const audio = new Audio();
+    const url = URL.createObjectURL(file);
+    audio.src = url;
+    audio.onloadedmetadata = () => { URL.revokeObjectURL(url); resolve(audio.duration); };
+    audio.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+  });
+}
+
+// 初期表示
+updateUsageMeter();
 
 function handleFile(input) {
   if (input.files[0]) loadFile(input.files[0]);
@@ -1774,29 +1919,6 @@ function clearFile() {
   crtLog('FILE BUFFER CLEARED', 'warn');
 }
 
-function saveApiKey(showMsg) {
-  const k = document.getElementById('apiKey').value.trim();
-  if (k) localStorage.setItem('mojioko_apikey', k);
-  else localStorage.removeItem('mojioko_apikey');
-  if (showMsg) {
-    const msg = document.getElementById('apiSavedMsg');
-    msg.style.display = 'block';
-    setTimeout(() => { msg.style.display = 'none'; }, 2000);
-  }
-}
-
-function loadApiKey() {
-  const k = localStorage.getItem('mojioko_apikey');
-  if (k) {
-    document.getElementById('apiKey').value = k;
-    updateApiDot();
-  }
-}
-
-function updateApiDot() {
-  const k = document.getElementById('apiKey').value.trim();
-  document.getElementById('apiDot').classList.toggle('ok', k.startsWith('sk-') && k.length > 24);
-}
 
 function fmtSize(b) {
   if (b < 1024) return b + 'B';
@@ -1813,10 +1935,87 @@ function crtLog(line, type) {
   if (d.children.length > 8) d.removeChild(d.firstChild);
 }
 
+// URLペースト時: STARTボタンをパルスさせてユーザーに押すよう促す
+function onUrlPaste() {
+  const url = document.getElementById('audioUrl').value.trim();
+  if (!url.startsWith('http')) return;
+  const btn = document.getElementById('executeBtn');
+  btn.classList.add('ready');
+  crtLog('>> URL LOADED — PRESS START', 'ok');
+}
+
+// URL欄が手動変更されたとき: 空になったらボタンをリセット
+function onUrlInput() {
+  const url = document.getElementById('audioUrl').value.trim();
+  const btn = document.getElementById('executeBtn');
+  if (!url) btn.classList.remove('ready');
+  else if (url.startsWith('http')) btn.classList.add('ready');
+}
+
+// (互換のために残す: 直接呼ばれることはなくなった)
+async function executeFromUrl() {
+  const url = document.getElementById('audioUrl').value.trim();
+  if (!url.startsWith('http')) return;
+  currentFile = null;
+  document.getElementById('fileLoaded').classList.remove('visible');
+  execute();
+}
+
+async function resolvePlaudShareUrl(shareUrl) {
+  crtLog('>> RESOLVING PLAUD SHARE URL...', 'warn');
+
+  try {
+    const res = await fetch('/api/plaud-share', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        shareUrl,
+        plaudToken: plaudToken || null,
+        plaudApiBase: plaudApiBase || null,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (data.url) {
+      crtLog('>> PLAUD SHARE URL RESOLVED ✓', 'ok');
+      // duration_msも返す（使用量計算用）
+      return { url: data.url, duration_ms: data.duration_ms || null };
+    }
+
+    // デバッグ情報をCRTに表示
+    if (data.detail) {
+      crtLog(`>> PLAUD API detail: ${JSON.stringify(data.detail).slice(0, 200)}`, 'warn');
+    }
+
+    showError(`ERR_PLAUD: ${data.error || 'NO_AUDIO_URL'} — ${data.detail ? JSON.stringify(data.detail).slice(0, 100) : 'CRTログ確認'}`);
+    return null;
+  } catch (e) {
+    showError(`ERR_PLAUD: PROXY_ERROR — ${e.message}`);
+    return null;
+  }
+}
+
 async function execute() {
-  const apiKey = document.getElementById('apiKey').value.trim();
-  if (!apiKey) { showError('ERR_401: API KEY NOT SET'); return; }
-  if (!currentFile) { showError('ERR_400: NO INPUT FILE DETECTED'); return; }
+  // PLAUD共有URLを検出して解決（EXECUTEボタン直接クリック時もカバー）
+  let audioUrl = document.getElementById('audioUrl').value.trim();
+  let pendingDuration = null; // 使用量計算用（秒）
+
+  if (!currentFile && audioUrl &&
+      (audioUrl.includes('web.plaud.ai/s/') || audioUrl.includes('web.plaud.ai/nshare/'))) {
+    const resolved = await resolvePlaudShareUrl(audioUrl);
+    if (!resolved) return;
+    audioUrl = resolved.url;
+    if (resolved.duration_ms) pendingDuration = resolved.duration_ms / 1000;
+    document.getElementById('audioUrl').value = audioUrl;
+  }
+
+  // ファイルモード: Web Audio APIで尺を取得
+  if (currentFile && pendingDuration === null) {
+    pendingDuration = await getAudioDuration(currentFile);
+  }
+
+  if (!currentFile && !audioUrl) { showError('ERR_400: NO INPUT FILE OR URL'); return; }
 
   const lang = document.getElementById('langSelect').value;
   const mode = document.getElementById('outputMode').value;
@@ -1833,38 +2032,36 @@ async function execute() {
   document.getElementById('procLed').style.boxShadow = '0 0 8px var(--amber)';
   animProgress(0, 40, 800);
   crtLog('>> TRANSMITTING AUDIO SIGNAL...', 'warn');
-  crtLog(`>> MODE: ${mode.toUpperCase()} | FMT: ${fmt.toUpperCase()} | LANG: ${lang.toUpperCase()}`, '');
+  crtLog(`>> FMT: ${fmt.toUpperCase()} | LANG: ${lang.toUpperCase()}`, '');
+  crtLog('>> ENGINE: GROQ (whisper-large-v3-turbo)', '');
 
-  // Groq (gsk_) か OpenAI (sk-) かを自動判定
-  const isGroq = apiKey.startsWith('gsk_');
-  let endpoint, model;
-  if (isGroq) {
-    // Groq は translate 非対応 → transcribe にフォールバック
-    endpoint = 'https://api.groq.com/openai/v1/audio/transcriptions';
-    model = 'whisper-large-v3-turbo';
-    if (mode === 'translate') {
-      crtLog('>> GROQ: translate非対応 → transcribeで実行', 'warn');
-    }
+  // URLモード: JSONでプロキシに送信 → サーバーサイドでフェッチしてGroqにfileとして転送
+  // fileモード: multipart/form-dataでプロキシに送信 → そのままGroqに転送
+  let fetchBody, fetchHeaders = {};
+  if (audioUrl && !currentFile) {
+    crtLog(`>> URL: ${audioUrl.slice(0, 60)}...`, '');
+    fetchBody = JSON.stringify({
+      url: audioUrl,
+      model: 'whisper-large-v3-turbo',
+      response_format: fmt,
+      ...(lang !== 'auto' ? { language: lang } : {})
+    });
+    fetchHeaders['Content-Type'] = 'application/json';
   } else {
-    endpoint = mode === 'translate'
-      ? 'https://api.openai.com/v1/audio/translations'
-      : 'https://api.openai.com/v1/audio/transcriptions';
-    model = 'whisper-1';
+    const form = new FormData();
+    form.append('file', currentFile);
+    form.append('model', 'whisper-large-v3-turbo');
+    form.append('response_format', fmt);
+    if (lang !== 'auto') form.append('language', lang);
+    fetchBody = form;
   }
-  crtLog(`>> ENGINE: ${isGroq ? 'GROQ (whisper-large-v3-turbo / FREE)' : 'OPENAI (whisper-1)'}`, '');
-
-  const form = new FormData();
-  form.append('file', currentFile);
-  form.append('model', model);
-  form.append('response_format', fmt);
-  if (lang !== 'auto') form.append('language', lang);
 
   try {
     animProgress(40, 80, 1200);
-    const res = await fetch(endpoint, {
+    const res = await fetch('/api/whisper', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}` },
-      body: form
+      headers: fetchHeaders,
+      body: fetchBody
     });
 
     animProgress(80, 100, 400);
@@ -1895,6 +2092,12 @@ async function execute() {
     crtLog(`>> DECODE COMPLETE. CHARS:${chars} WORDS:${words}`, 'ok');
     crtLog('>> SIGNAL WRITTEN TO OUTPUT TERMINAL', 'ok');
 
+    // 使用量を記録
+    if (pendingDuration) {
+      addUsedSeconds(pendingDuration);
+      crtLog(`>> QUOTA USED: +${Math.round(pendingDuration)}s`, '');
+    }
+
     // If translate mode, show translation section with same result
     if (mode === 'translate') {
       lastTranslation = text;
@@ -1913,7 +2116,8 @@ async function execute() {
     document.getElementById('outputArea').textContent = '[SIGNAL LOST]\n' + err.message;
   } finally {
     btn.disabled = false;
-    btn.textContent = '▶ EXECUTE ANALYSIS';
+    btn.textContent = '▶ START';
+    btn.classList.remove('ready');
     document.getElementById('procLed').style.boxShadow = '';
     setTimeout(() => document.getElementById('progressTrack').classList.remove('visible'), 600);
   }

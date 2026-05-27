@@ -11,7 +11,9 @@ module.exports = async function handler(req, res) {
   const auth = req.headers['authorization'];
   const base = req.headers['x-plaud-base'] || 'https://api-apne1.plaud.ai';
 
-  if (!path || !auth) {
+  // /share/ パスは公開APIなので認証不要（認証ありだと链接错误になる場合がある）
+  const isSharePath = path.startsWith('/share/');
+  if (!path || (!auth && !isSharePath)) {
     return res.status(400).json({ error: 'MISSING_PATH_OR_AUTH' });
   }
 
@@ -23,12 +25,12 @@ module.exports = async function handler(req, res) {
     const plaudRes = await fetch(base + path, {
       method: req.method,
       headers: {
-        Authorization: auth,
+        ...(auth ? { Authorization: auth } : {}),
         Accept: 'application/json, text/plain, */*',
         'Content-Type': 'application/json',
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Origin': 'https://app.plaud.ai',
-        'Referer': 'https://app.plaud.ai/',
+        'Origin': 'https://web.plaud.ai',
+        'Referer': 'https://web.plaud.ai/',
         'Accept-Language': 'ja,en;q=0.9',
       },
       redirect: 'follow',
