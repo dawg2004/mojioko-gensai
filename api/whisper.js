@@ -46,56 +46,18 @@ module.exports = async function handler(req, res) {
       } catch (_) {}
       const filename = `audio.${ext}`;
 
-      // Groq用 multipart/form-data を手動構築
-      const boundary = `----mojiokoB${Date.now()}`;
-      const CRLF = '\r\n';
-      const parts = [];
-
-      // file パート
-      parts.push(Buffer.from(
-        `--${boundary}${CRLF}` +
-        `Content-Disposition: form-data; name="file"; filename="${filename}"${CRLF}` +
-        `Content-Type: application/octet-stream${CRLF}${CRLF}`
-      ));
-      parts.push(audioBuffer);
-      parts.push(Buffer.from(CRLF));
-
-      // model パート
-      parts.push(Buffer.from(
-        `--${boundary}${CRLF}` +
-        `Content-Disposition: form-data; name="model"${CRLF}${CRLF}` +
-        `${model || 'whisper-large-v3-turbo'}${CRLF}`
-      ));
-
-      // response_format パート
-      if (response_format) {
-        parts.push(Buffer.from(
-          `--${boundary}${CRLF}` +
-          `Content-Disposition: form-data; name="response_format"${CRLF}${CRLF}` +
-          `${response_format}${CRLF}`
-        ));
-      }
-
-      // language パート
-      if (language && language !== 'auto') {
-        parts.push(Buffer.from(
-          `--${boundary}${CRLF}` +
-          `Content-Disposition: form-data; name="language"${CRLF}${CRLF}` +
-          `${language}${CRLF}`
-        ));
-      }
-
-      parts.push(Buffer.from(`--${boundary}--${CRLF}`));
-
-      const multipartBody = Buffer.concat(parts);
+      // Groq用 FormData を構築（手動multipartを廃止してネイティブFormData使用）
+      const form = new FormData();
+      const blob = new Blob([audioBuffer], { type: 'application/octet-stream' });
+      form.append('file', blob, filename);
+      form.append('model', model || 'whisper-large-v3-turbo');
+      if (response_format) form.append('response_format', response_format);
+      if (language && language !== 'auto') form.append('language', language);
 
       groqRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        },
-        body: multipartBody,
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+        body: form,
       });
 
     } else if (contentType.includes('multipart/form-data')) {

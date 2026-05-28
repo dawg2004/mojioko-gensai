@@ -628,6 +628,81 @@ h1 .accent { color: var(--amber); }
 
 .tool-btn:hover { border-color: var(--amber-dim); color: var(--amber); }
 
+/* History panel */
+.history-panel {
+  display: none;
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+.history-panel.visible { display: block; }
+.history-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.history-panel-title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.12em;
+}
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.history-item {
+  background: var(--panel3);
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.history-item:hover { border-color: var(--amber-dim); }
+.history-item-meta {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+.history-item-preview {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.history-item-del {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px;
+  color: var(--text-dim);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 4px;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.history-item-del:hover { color: var(--red-bright); }
+.history-empty {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 20px 0;
+}
+
 /* Translation result */
 .translation-block {
   display: none;
@@ -1280,6 +1355,7 @@ h1 .accent { color: var(--amber); }
         <select class="param-select" id="outputMode">
           <option value="transcribe">TRANSCRIBE</option>
           <option value="translate">TRANSLATE → EN</option>
+          <option value="translate_ja">TRANSCRIBE + JA訳</option>
         </select>
       </div>
 
@@ -1290,6 +1366,7 @@ h1 .accent { color: var(--amber); }
           <option value="text">PLAIN TEXT</option>
           <option value="srt">SRT SUBTITLE</option>
           <option value="vtt">VTT SUBTITLE</option>
+          <option value="timestamp" selected>TIMESTAMP</option>
         </select>
       </div>
 
@@ -1307,7 +1384,7 @@ h1 .accent { color: var(--amber); }
         <div class="usage-bar-track">
           <div class="usage-bar-fill" id="usageBarFill"></div>
         </div>
-        <div class="usage-note">上限 120分/日（UTC 0:00リセット）</div>
+        <div class="usage-note">上限 120分/時間（毎時リセット）</div>
       </div>
 
       <div class="error-block" id="errorBlock"></div>
@@ -1365,11 +1442,20 @@ h1 .accent { color: var(--amber); }
         <button class="tool-btn" onclick="copyResult()">[ COPY ]</button>
         <button class="tool-btn" onclick="downloadResult()">[ DOWNLOAD .TXT ]</button>
         <button class="tool-btn" onclick="clearOutput()">[ CLEAR ]</button>
+        <button class="tool-btn" id="historyToggleBtn" onclick="toggleHistory()">[ HISTORY ]</button>
+      </div>
+
+      <div class="history-panel" id="historyPanel">
+        <div class="history-panel-header">
+          <span class="history-panel-title">// TRANSCRIPTION HISTORY (MAX 30)</span>
+          <button class="tool-btn" onclick="clearAllHistory()" style="font-size:9px;padding:4px 8px;">[ CLEAR ALL ]</button>
+        </div>
+        <div class="history-list" id="historyList"></div>
       </div>
 
       <div class="translation-block" id="translationBlock">
         <div class="translation-header">
-          <div class="translation-tag">EN TRANSLATION OUTPUT</div>
+          <div class="translation-tag" id="translationTag">EN TRANSLATION OUTPUT</div>
         </div>
         <div class="translation-output" id="translationOutput">—</div>
         <div class="output-toolbar" style="margin-top:10px;">
@@ -1741,6 +1827,7 @@ async function getPlaudTranscript(fileId, fileName) {
     document.getElementById('mWords').textContent = words;
     document.getElementById('mStatus').textContent = 'OK';
     crtLog(`TRANSCRIPT OK // CHARS:${chars} WORDS:${words}`, 'ok');
+    saveHistory(text, fileName);
     toast(`PLAUD TRANSCRIPT: ${fileName}`);
   } catch(e) {
     document.getElementById('mStatus').textContent = 'FAIL';
@@ -1849,8 +1936,9 @@ dz.addEventListener('drop', e => {
 const GROQ_DAILY_LIMIT = 7200; // 秒（120分）
 
 function _usageKey() {
-  // UTC日付キー（Groqのリセットタイミングに合わせてUTC基準）
-  return 'groq_used_' + new Date().toISOString().slice(0, 10);
+  // UTC時間キー（Groqは毎時リセット）
+  const now = new Date();
+  return 'groq_used_' + now.toISOString().slice(0, 13); // YYYY-MM-DDTHH
 }
 function getUsedSeconds() {
   return parseFloat(localStorage.getItem(_usageKey()) || '0');
@@ -2035,15 +2123,17 @@ async function execute() {
   crtLog(`>> FMT: ${fmt.toUpperCase()} | LANG: ${lang.toUpperCase()}`, '');
   crtLog('>> ENGINE: GROQ (whisper-large-v3-turbo)', '');
 
-  // URLモード: JSONでプロキシに送信 → サーバーサイドでフェッチしてGroqにfileとして転送
-  // fileモード: multipart/form-dataでプロキシに送信 → そのままGroqに転送
+  // Groq whisper-large-v3-turbo は json / text / verbose_json のみ対応
+  // srt / vtt / timestamp は verbose_json で取得してクライアント変換
+  const needsVerbose = ['timestamp', 'srt', 'vtt'].includes(fmt);
+  const groqFmt = needsVerbose ? 'verbose_json' : fmt;
   let fetchBody, fetchHeaders = {};
   if (audioUrl && !currentFile) {
     crtLog(`>> URL: ${audioUrl.slice(0, 60)}...`, '');
     fetchBody = JSON.stringify({
       url: audioUrl,
       model: 'whisper-large-v3-turbo',
-      response_format: fmt,
+      response_format: groqFmt,
       ...(lang !== 'auto' ? { language: lang } : {})
     });
     fetchHeaders['Content-Type'] = 'application/json';
@@ -2051,7 +2141,7 @@ async function execute() {
     const form = new FormData();
     form.append('file', currentFile);
     form.append('model', 'whisper-large-v3-turbo');
-    form.append('response_format', fmt);
+    form.append('response_format', groqFmt);
     if (lang !== 'auto') form.append('language', lang);
     fetchBody = form;
   }
@@ -2073,7 +2163,37 @@ async function execute() {
     }
 
     let text;
-    if (fmt === 'json') {
+    if (needsVerbose) {
+      const j = await res.json();
+      const segs = j.segments || [];
+      const toHMS = s => {
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
+        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+      };
+      const toSRTTime = s => {
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60),
+              sec = Math.floor(s % 60), ms = Math.round((s % 1) * 1000);
+        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')},${String(ms).padStart(3,'0')}`;
+      };
+      const toVTTTime = s => {
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60),
+              sec = Math.floor(s % 60), ms = Math.round((s % 1) * 1000);
+        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}.${String(ms).padStart(3,'0')}`;
+      };
+      if (!segs.length) {
+        text = j.text || JSON.stringify(j, null, 2);
+      } else if (fmt === 'timestamp') {
+        text = segs.map(s => `[${toHMS(s.start)}]  ${s.text.trim()}`).join('\n');
+      } else if (fmt === 'srt') {
+        text = segs.map((s, i) =>
+          `${i + 1}\n${toSRTTime(s.start)} --> ${toSRTTime(s.end)}\n${s.text.trim()}`
+        ).join('\n\n');
+      } else if (fmt === 'vtt') {
+        text = 'WEBVTT\n\n' + segs.map((s, i) =>
+          `${i + 1}\n${toVTTTime(s.start)} --> ${toVTTTime(s.end)}\n${s.text.trim()}`
+        ).join('\n\n');
+      }
+    } else if (fmt === 'json') {
       const j = await res.json();
       text = j.text || JSON.stringify(j, null, 2);
     } else {
@@ -2092,6 +2212,10 @@ async function execute() {
     crtLog(`>> DECODE COMPLETE. CHARS:${chars} WORDS:${words}`, 'ok');
     crtLog('>> SIGNAL WRITTEN TO OUTPUT TERMINAL', 'ok');
 
+    // 履歴保存
+    const histSrc = currentFile ? currentFile.name : (audioUrl ? audioUrl.split('/').pop().split('?')[0].slice(0,30) : '—');
+    saveHistory(text, histSrc);
+
     // 使用量を記録
     if (pendingDuration) {
       addUsedSeconds(pendingDuration);
@@ -2101,9 +2225,37 @@ async function execute() {
     // If translate mode, show translation section with same result
     if (mode === 'translate') {
       lastTranslation = text;
+      document.getElementById('translationTag').textContent = 'EN TRANSLATION OUTPUT';
       document.getElementById('translationOutput').textContent = text;
       document.getElementById('translationBlock').classList.add('visible');
       document.getElementById('outputArea').textContent = '(TRANSLATE MODE: 英語翻訳結果は下部に表示)';
+    }
+
+    // TRANSCRIBE + JA訳モード: 文字起こし後にGroq LLMで日本語翻訳
+    if (mode === 'translate_ja') {
+      document.getElementById('translationTag').textContent = 'JA 日本語訳 OUTPUT';
+      document.getElementById('translationOutput').textContent = '翻訳中...';
+      document.getElementById('translationBlock').classList.add('visible');
+      crtLog('>> TRANSLATING TO JA via GROQ LLM...', 'warn');
+      try {
+        const trRes = await fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, targetLang: 'ja' }),
+        });
+        const trData = await trRes.json();
+        if (trData.translated) {
+          lastTranslation = trData.translated;
+          document.getElementById('translationOutput').textContent = trData.translated;
+          crtLog('>> JA TRANSLATION COMPLETE ✓', 'ok');
+        } else {
+          document.getElementById('translationOutput').textContent = '[翻訳失敗] ' + (trData.error || '');
+          crtLog('>> JA TRANSLATION FAILED: ' + (trData.error || ''), 'err');
+        }
+      } catch (trErr) {
+        document.getElementById('translationOutput').textContent = '[翻訳エラー] ' + trErr.message;
+        crtLog('>> JA TRANSLATION ERR: ' + trErr.message, 'err');
+      }
     }
 
     toast('処理完了 // DECODE SUCCESS');
@@ -2185,6 +2337,89 @@ function toast(msg) {
   t.textContent = '// ' + msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ── HISTORY ─────────────────────────────────────────────
+const HISTORY_KEY = 'mojioko_history';
+const HISTORY_MAX = 30;
+
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+  catch(_) { return []; }
+}
+function saveHistoryList(list) {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+}
+function saveHistory(text, source) {
+  if (!text || text === 'SIGNAL PENDING...') return;
+  const list = loadHistory();
+  const entry = {
+    id: Date.now(),
+    ts: new Date().toISOString(),
+    source: source || '—',
+    chars: text.length,
+    words: text.trim().split(/\s+/).filter(Boolean).length,
+    text,
+  };
+  list.unshift(entry);
+  if (list.length > HISTORY_MAX) list.splice(HISTORY_MAX);
+  saveHistoryList(list);
+  renderHistory();
+}
+function renderHistory() {
+  const list = loadHistory();
+  const el = document.getElementById('historyList');
+  if (!el) return;
+  if (!list.length) {
+    el.innerHTML = '<div class="history-empty">NO HISTORY</div>';
+    return;
+  }
+  el.innerHTML = list.map((entry, i) => {
+    const d = new Date(entry.ts);
+    const dateStr = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    const src = entry.source.length > 20 ? entry.source.slice(0,20)+'…' : entry.source;
+    const preview = entry.text.replace(/\n/g,' ').slice(0, 80);
+    return `<div class="history-item" onclick="restoreFromHistory(${i})">
+      <div class="history-item-meta">${dateStr}<br>${src}<br>${entry.chars}chr</div>
+      <div class="history-item-preview">${preview}</div>
+      <button class="history-item-del" onclick="event.stopPropagation();deleteHistory(${i})" title="削除">✕</button>
+    </div>`;
+  }).join('');
+}
+function restoreFromHistory(i) {
+  const list = loadHistory();
+  if (!list[i]) return;
+  const entry = list[i];
+  lastResult = entry.text;
+  document.getElementById('outputArea').textContent = entry.text;
+  document.getElementById('mChars').textContent = entry.chars;
+  document.getElementById('mWords').textContent = entry.words;
+  document.getElementById('mStatus').textContent = 'OK';
+  crtLog(`>> HISTORY RESTORED: ${entry.source}`, 'ok');
+  toast('履歴から復元 // RESTORED');
+}
+function deleteHistory(i) {
+  const list = loadHistory();
+  list.splice(i, 1);
+  saveHistoryList(list);
+  renderHistory();
+  toast('削除 // DELETED');
+}
+function clearAllHistory() {
+  if (!confirm('全履歴を削除しますか？')) return;
+  localStorage.removeItem(HISTORY_KEY);
+  renderHistory();
+  toast('全履歴削除 // ALL CLEARED');
+}
+function toggleHistory() {
+  const panel = document.getElementById('historyPanel');
+  const btn = document.getElementById('historyToggleBtn');
+  if (panel.classList.toggle('visible')) {
+    renderHistory();
+    btn.textContent = '[ HISTORY ▲ ]';
+  } else {
+    btn.textContent = '[ HISTORY ]';
+  }
 }
 </script>
 </body>
