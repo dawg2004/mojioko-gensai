@@ -1978,7 +1978,7 @@ async function execute() {
 
     if (!res.ok) {
       let msg = `HTTP ${res.status}`;
-      try { const j = await res.json(); msg = j.error?.message || msg; } catch(e) {}
+      try { const j = await res.json(); msg = j.error?.message || (typeof j.error === 'string' ? j.error : null) || msg; } catch(e) {}
       throw new Error(msg);
     }
 
