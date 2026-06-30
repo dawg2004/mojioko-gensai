@@ -1127,7 +1127,7 @@ h1 .accent { color: var(--amber); }
         <span class="drop-icon">📡</span>
         <h3>Signal Drop Zone</h3>
         <p>MP3 / WAV / M4A / MP4 / FLAC / OGG</p>
-        <p style="margin-top:4px; color: #3e4238;">MAX 25MB per OpenAI spec</p>
+        <p style="margin-top:4px; color: #3e4238;">MAX 300MB（25MB超は自動分割処理）</p>
       </div>
       <!-- URL Input -->
       <div style="display:flex; align-items:center; gap:8px; margin:8px 0 6px;">
@@ -1810,6 +1810,12 @@ function handleFile(input) {
 }
 
 function loadFile(f) {
+  const MAX_UPLOAD_SIZE = 300 * 1024 * 1024;
+  if (f.size > MAX_UPLOAD_SIZE) {
+    showError(`ERR_413: FILE TOO LARGE (${fmtSize(f.size)}) — MAX 300MB`);
+    crtLog(`>> REJECTED: ${fmtSize(f.size)} EXCEEDS 300MB LIMIT`, 'err');
+    return;
+  }
   currentFile = f;
   document.getElementById('fileLoaded').classList.add('visible');
   document.getElementById('fName').textContent = f.name;
@@ -1817,6 +1823,9 @@ function loadFile(f) {
   document.getElementById('mFileSize').textContent = fmtSize(f.size);
   crtLog(`FILE LOADED: ${f.name}`, 'bright');
   crtLog(`SIZE: ${fmtSize(f.size)} | TYPE: ${f.type || 'UNKNOWN'}`, '');
+  if (f.size > CHUNK_SIZE_LIMIT) {
+    crtLog(`>> NOTE: FILE >25MB — WILL AUTO-SPLIT INTO CHUNKS ON START`, 'warn');
+  }
 }
 
 function clearFile() {
@@ -1904,6 +1913,144 @@ async function resolvePlaudShareUrl(shareUrl) {
   }
 }
 
+// ── 大容量ファイル分割処理（25MB超） ──────────────────────
+const CHUNK_SIZE_LIMIT = 25 * 1024 * 1024; // Groq APIの実上限
+const CHUNK_DURATION_SEC = 600; // 1チャンクあたり10分を目安に分割（圧縮後25MB以下になるよう調整）
+
+// File/BlobをAudioBufferにデコード
+async function decodeAudioFile(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  try {
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    return audioBuffer;
+  } finally {
+    audioCtx.close();
+  }
+}
+
+// AudioBufferの一部区間をWAV(16bit PCM)のBlobに変換
+function audioBufferSliceToWav(audioBuffer, startSec, endSec) {
+  const sampleRate = audioBuffer.sampleRate;
+  const numChannels = audioBuffer.numberOfChannels;
+  const startSample = Math.floor(startSec * sampleRate);
+  const endSample = Math.min(Math.floor(endSec * sampleRate), audioBuffer.length);
+  const frameCount = Math.max(endSample - startSample, 0);
+
+  const bytesPerSample = 2; // 16bit
+  const blockAlign = numChannels * bytesPerSample;
+  const dataSize = frameCount * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  const writeStr = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  const channelData = [];
+  for (let ch = 0; ch < numChannels; ch++) channelData.push(audioBuffer.getChannelData(ch));
+
+  let offset = 44;
+  for (let i = startSample; i < endSample; i++) {
+    for (let ch = 0; ch < numChannels; ch++) {
+      let sample = channelData[ch][i];
+      sample = Math.max(-1, Math.min(1, sample));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+      offset += 2;
+    }
+  }
+
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+// 1チャンクをGroqに送信して文字起こしテキストを取得
+async function transcribeChunkBlob(blob, idx, lang, groqFmt) {
+  const form = new FormData();
+  form.append('file', blob, `chunk_${idx}.wav`);
+  form.append('model', 'whisper-large-v3-turbo');
+  form.append('response_format', groqFmt);
+  if (lang !== 'auto') form.append('language', lang);
+
+  const res = await fetch('/api/whisper', { method: 'POST', body: form });
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try { const j = await res.json(); msg = j.error?.message || (typeof j.error === 'string' ? j.error : null) || msg; } catch(e) {}
+    throw new Error(`CHUNK ${idx}: ${msg}`);
+  }
+  if (groqFmt === 'verbose_json' || groqFmt === 'json') {
+    return await res.json();
+  }
+  return { text: await res.text() };
+}
+
+// 大容量ファイルをチャンク分割して順次文字起こし → 結合
+async function executeChunked(file, lang, fmt, needsVerbose, groqFmt) {
+  crtLog('>> LARGE FILE DETECTED — SWITCHING TO CHUNK MODE', 'warn');
+  crtLog('>> DECODING AUDIO (this may take a moment)...', '');
+
+  let audioBuffer;
+  try {
+    audioBuffer = await decodeAudioFile(file);
+  } catch (e) {
+    throw new Error(`AUDIO DECODE FAILED: ${e.message}`);
+  }
+
+  const totalDuration = audioBuffer.duration;
+  const numChunks = Math.ceil(totalDuration / CHUNK_DURATION_SEC);
+  crtLog(`>> TOTAL DURATION: ${Math.round(totalDuration)}s — SPLITTING INTO ${numChunks} CHUNK(S)`, '');
+
+  let combinedText = '';
+  let combinedSegments = [];
+  let timeOffset = 0;
+
+  for (let i = 0; i < numChunks; i++) {
+    const startSec = i * CHUNK_DURATION_SEC;
+    const endSec = Math.min((i + 1) * CHUNK_DURATION_SEC, totalDuration);
+
+    crtLog(`>> CHUNK ${i + 1}/${numChunks}: ENCODING [${Math.round(startSec)}s-${Math.round(endSec)}s]...`, '');
+    const wavBlob = audioBufferSliceToWav(audioBuffer, startSec, endSec);
+
+    if (wavBlob.size > CHUNK_SIZE_LIMIT) {
+      crtLog(`>> CHUNK ${i + 1} EXCEEDS 25MB (${fmtSize(wavBlob.size)}) — CONSIDER SHORTER CHUNK_DURATION_SEC`, 'err');
+    }
+
+    crtLog(`>> CHUNK ${i + 1}/${numChunks}: TRANSMITTING (${fmtSize(wavBlob.size)})...`, '');
+    animProgress(Math.round((i / numChunks) * 80), Math.round(((i + 1) / numChunks) * 80), 600);
+
+    const result = await transcribeChunkBlob(wavBlob, i + 1, lang, groqFmt);
+
+    if (needsVerbose && result.segments) {
+      const offsetSegs = result.segments.map(s => ({ ...s, start: s.start + timeOffset, end: s.end + timeOffset }));
+      combinedSegments = combinedSegments.concat(offsetSegs);
+    } else {
+      combinedText += (combinedText ? '\n' : '') + (result.text || '');
+    }
+    timeOffset += (endSec - startSec);
+
+    crtLog(`>> CHUNK ${i + 1}/${numChunks}: DONE ✓`, 'ok');
+  }
+
+  crtLog('>> ALL CHUNKS COMPLETE — MERGING RESULTS', 'ok');
+
+  if (needsVerbose) {
+    return { segments: combinedSegments, text: combinedSegments.map(s => s.text).join(' ') };
+  }
+  return { text: combinedText };
+}
+// ──────────────────────────────────────────────────────
+
 async function execute() {
   // PLAUD共有URLを検出して解決（EXECUTEボタン直接クリック時もカバー）
   let audioUrl = document.getElementById('audioUrl').value.trim();
@@ -1966,25 +2113,35 @@ async function execute() {
     fetchBody = form;
   }
 
+  // 25MB超のファイルはチャンク分割モードへ
+  const isLargeFile = currentFile && currentFile.size > CHUNK_SIZE_LIMIT;
+
   try {
-    animProgress(40, 80, 1200);
-    const res = await fetch('/api/whisper', {
-      method: 'POST',
-      headers: fetchHeaders,
-      body: fetchBody
-    });
+    let chunkedResult = null;
 
-    animProgress(80, 100, 400);
+    if (isLargeFile) {
+      chunkedResult = await executeChunked(currentFile, lang, fmt, needsVerbose, groqFmt);
+      animProgress(80, 100, 400);
+    } else {
+      animProgress(40, 80, 1200);
+      var res = await fetch('/api/whisper', {
+        method: 'POST',
+        headers: fetchHeaders,
+        body: fetchBody
+      });
 
-    if (!res.ok) {
-      let msg = `HTTP ${res.status}`;
-      try { const j = await res.json(); msg = j.error?.message || (typeof j.error === 'string' ? j.error : null) || msg; } catch(e) {}
-      throw new Error(msg);
+      animProgress(80, 100, 400);
+
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { const j = await res.json(); msg = j.error?.message || (typeof j.error === 'string' ? j.error : null) || msg; } catch(e) {}
+        throw new Error(msg);
+      }
     }
 
     let text;
     if (needsVerbose) {
-      const j = await res.json();
+      const j = isLargeFile ? chunkedResult : await res.json();
       const segs = j.segments || [];
       const toHMS = s => {
         const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
@@ -2014,10 +2171,10 @@ async function execute() {
         ).join('\n\n');
       }
     } else if (fmt === 'json') {
-      const j = await res.json();
+      const j = isLargeFile ? chunkedResult : await res.json();
       text = j.text || JSON.stringify(j, null, 2);
     } else {
-      text = await res.text();
+      text = isLargeFile ? (chunkedResult.text || '') : await res.text();
     }
 
     lastResult = text;
@@ -2244,3 +2401,4 @@ function toggleHistory() {
 </script>
 </body>
 </html>
+
