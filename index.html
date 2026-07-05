@@ -1140,6 +1140,15 @@ h1 .accent { color: var(--amber); }
         <input class="api-input" type="url" id="audioUrl" placeholder="https://...mp3" onpaste="setTimeout(onUrlPaste,100)" oninput="onUrlInput()">
       </div>
 
+      <!-- Drive Input -->
+      <div style="display:flex; align-items:center; gap:8px; margin:8px 0 6px;">
+        <div class="divider-line"></div>
+        <span style="font-size:12px; color:var(--text-dim); white-space:nowrap; font-family:'Share Tech Mono',monospace; letter-spacing:0.15em;">OR DRIVE</span>
+        <div class="divider-line"></div>
+      </div>
+      <button class="rec-btn whisper" style="width:100%; padding:8px; margin-bottom:6px;" id="driveListBtn" onclick="loadDriveList()">📁 DRIVEフォルダから一覧取得</button>
+      <div class="recordings-list" id="driveList"></div>
+
       <div class="file-loaded" id="fileLoaded">
         <div class="file-loaded-led"></div>
         <div class="file-loaded-info">
@@ -1263,6 +1272,7 @@ h1 .accent { color: var(--amber); }
         <button class="tool-btn" onclick="downloadResult()">[ DOWNLOAD .TXT ]</button>
         <button class="tool-btn" onclick="clearOutput()">[ CLEAR ]</button>
         <button class="tool-btn" id="historyToggleBtn" onclick="toggleHistory()">[ HISTORY ]</button>
+        <button class="tool-btn" id="summarizeBtn" onclick="summarizeCurrent()">[ 要約する ]</button>
       </div>
 
       <div class="history-panel" id="historyPanel">
@@ -1284,6 +1294,17 @@ h1 .accent { color: var(--amber); }
         </div>
       </div>
 
+      <div class="translation-block" id="summaryBlock">
+        <div class="translation-header">
+          <div class="translation-tag">📋 SUMMARY OUTPUT (要約)</div>
+        </div>
+        <div class="translation-output" id="summaryOutput">—</div>
+        <div class="output-toolbar" style="margin-top:10px;">
+          <button class="tool-btn" onclick="copySummary()">[ COPY ]</button>
+          <button class="tool-btn" onclick="downloadSummary()">[ DOWNLOAD SUMMARY.TXT ]</button>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -1294,6 +1315,7 @@ h1 .accent { color: var(--amber); }
 let currentFile = null;
 let lastResult = '';
 let lastTranslation = '';
+let lastSummary = '';
 
 // ── PLAUD ─────────────────────────────────────────────
 const PLAUD_BASE = { us: 'https://api.plaud.ai', eu: 'https://api-euc1.plaud.ai', apne1: 'https://api-apne1.plaud.ai' };
@@ -1734,7 +1756,123 @@ async function loadForWhisper(fileId, fileName) {
 }
 // ──────────────────────────────────────────────────────
 
-// 起動時処理
+// ── Google Drive ──────────────────────────────────────
+async function loadDriveList() {
+  const btn = document.getElementById('driveListBtn');
+  const list = document.getElementById('driveList');
+  btn.disabled = true;
+  btn.textContent = '⏳ 取得中...';
+  list.classList.add('visible');
+  list.innerHTML = '<div class="rec-list-header">LOADING DRIVE FILES...</div>';
+  crtLog('>> DRIVE: フォルダ一覧取得中...', 'warn');
+  try {
+    const res = await fetch('/api/drive-list');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    const files = data.files || [];
+    if (!files.length) {
+      list.innerHTML = '<div class="rec-list-header">NO AUDIO FILES FOUND</div>';
+      crtLog('>> DRIVE: ファイルなし', 'warn');
+      return;
+    }
+    list.innerHTML = `<div class="rec-list-header">DRIVE // ${files.length} FILES</div>`;
+    files.forEach(f => {
+      const safeName = (f.name || '').replace(/['"]/g, '');
+      const date = f.createdTime
+        ? new Date(f.createdTime).toLocaleDateString('ja-JP', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })
+        : '—';
+      const size = f.size ? fmtSize(Number(f.size)) : '—';
+      const div = document.createElement('div');
+      div.className = 'recording-item';
+      div.innerHTML = `
+        <div class="rec-name" title="${safeName}">${safeName}</div>
+        <div class="rec-date">${date} | ${size}</div>
+        <div class="rec-actions">
+          <button class="rec-btn whisper" id="driveBtn_${f.id}" onclick="loadForDrive('${f.id}','${safeName}')">▶ 文字起こし+要約</button>
+        </div>`;
+      list.appendChild(div);
+    });
+    crtLog(`>> DRIVE: ${files.length}件 取得完了`, 'ok');
+  } catch (e) {
+    list.innerHTML = `<div style="padding:10px;font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--red-bright);">ERR: ${e.message}</div>`;
+    crtLog(`>> DRIVE ERR: ${e.message}`, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📁 DRIVEフォルダから一覧取得';
+  }
+}
+
+async function loadForDrive(fileId, fileName) {
+  const btn = document.getElementById(`driveBtn_${fileId}`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ DL中...'; }
+  document.getElementById('mStatus').textContent = 'DL';
+  document.getElementById('errorBlock').classList.remove('visible');
+  crtLog(`>> DRIVE: ダウンロード中 ${fileName}`, 'warn');
+  try {
+    const res = await fetch(`/api/drive-audio?fileId=${encodeURIComponent(fileId)}`);
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json(); msg = j.error || msg; } catch(e) {}
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    currentFile = new File([blob], fileName, { type: blob.type || 'audio/mpeg' });
+    document.getElementById('fileLoaded').classList.add('visible');
+    document.getElementById('fName').textContent = currentFile.name;
+    document.getElementById('fSize').textContent = fmtSize(currentFile.size);
+    document.getElementById('mFileSize').textContent = fmtSize(currentFile.size);
+    crtLog(`>> DRIVE: ロード完了 ${fmtSize(currentFile.size)}`, 'ok');
+    if (btn) btn.textContent = '⏳ 文字起こし中...';
+    await execute();
+    if (lastResult) {
+      if (btn) btn.textContent = '⏳ 要約中...';
+      await summarizeCurrent();
+    }
+    if (btn) btn.textContent = '✓ 完了';
+  } catch (e) {
+    document.getElementById('mStatus').textContent = 'FAIL';
+    crtLog(`>> DRIVE ERR: ${e.message}`, 'err');
+    showError('DRIVE ERR: ' + e.message);
+    if (btn) { btn.textContent = '▶ 文字起こし+要約'; btn.disabled = false; }
+  }
+}
+
+// ── Summarize (要約) ───────────────────────────────────
+async function summarizeCurrent() {
+  const text = lastResult;
+  if (!text) { toast('要約対象のテキストがありません'); return; }
+  const summaryBlock = document.getElementById('summaryBlock');
+  const out = document.getElementById('summaryOutput');
+  summaryBlock.classList.add('visible');
+  out.textContent = '要約中...';
+  crtLog('>> SUMMARIZING via GROQ LLM...', 'warn');
+  try {
+    const res = await fetch('/api/summarize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.summary) throw new Error(data.error || 'SUMMARIZE_FAILED');
+    lastSummary = data.summary;
+    out.textContent = data.summary;
+    crtLog('>> SUMMARY COMPLETE ✓', 'ok');
+    toast('要約完了');
+  } catch (e) {
+    out.textContent = '[要約エラー] ' + e.message;
+    crtLog(`>> SUMMARY ERR: ${e.message}`, 'err');
+  }
+}
+
+function copySummary() {
+  navigator.clipboard.writeText(lastSummary || '');
+  toast('要約をコピーしました');
+}
+
+function downloadSummary() {
+  dl(lastSummary || '', 'summary.txt');
+}
+// ──────────────────────────────────────────────────────
 initBookmarklet();
 if (!window.location.hash.includes('plaud=')) {
   loadPlaudToken(); // ハッシュがない時だけ保存済みトークンを使う
