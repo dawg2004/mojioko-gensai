@@ -1147,6 +1147,7 @@ h1 .accent { color: var(--amber); }
         <div class="divider-line"></div>
       </div>
       <button class="rec-btn whisper" style="width:100%; padding:8px; margin-bottom:6px;" id="driveListBtn" onclick="loadDriveList()">📁 DRIVEフォルダから一覧取得</button>
+      <button class="rec-btn whisper" style="width:100%; padding:8px; margin-bottom:6px;" id="driveRunAllBtn" onclick="runAllDrive()" disabled>▶▶ 全部まとめて実行(最大10件・順番に処理)</button>
       <div class="recordings-list" id="driveList"></div>
 
       <div class="file-loaded" id="fileLoaded">
@@ -1314,6 +1315,7 @@ h1 .accent { color: var(--amber); }
 <script>
 let currentFile = null;
 let lastResult = '';
+let driveFilesCache = [];
 let lastTranslation = '';
 let lastSummary = '';
 
@@ -1770,10 +1772,18 @@ async function loadDriveList() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     const files = data.files || [];
+    driveFilesCache = files;
+    const runAllBtn = document.getElementById('driveRunAllBtn');
     if (!files.length) {
       list.innerHTML = '<div class="rec-list-header">NO AUDIO FILES FOUND</div>';
       crtLog('>> DRIVE: ファイルなし', 'warn');
+      if (runAllBtn) runAllBtn.disabled = true;
       return;
+    }
+    if (runAllBtn) {
+      runAllBtn.disabled = false;
+      const n = Math.min(files.length, 10);
+      runAllBtn.textContent = `▶▶ 全部まとめて実行(先頭${n}件・順番に処理)`;
     }
     list.innerHTML = `<div class="rec-list-header">DRIVE // ${files.length} FILES</div>`;
     files.forEach(f => {
@@ -1837,7 +1847,52 @@ async function loadForDrive(fileId, fileName) {
   }
 }
 
-// ── Summarize (要約) ───────────────────────────────────
+// ── Drive 一括処理 (最大10件を順番に文字起こし+要約 → 結果はHISTORYに自動蓄積) ──
+async function runAllDrive() {
+  if (!driveFilesCache.length) { toast('先に一覧取得してください'); return; }
+
+  const btn = document.getElementById('driveRunAllBtn');
+  const listBtn = document.getElementById('driveListBtn');
+  const targets = driveFilesCache.slice(0, 10);
+
+  btn.disabled = true;
+  listBtn.disabled = true;
+  let ok = 0, fail = 0;
+
+  crtLog(`>> BATCH START: ${targets.length}件を順番に処理`, 'warn');
+
+  for (let i = 0; i < targets.length; i++) {
+    const f = targets[i];
+    const safeName = (f.name || '').replace(/['"]/g, '');
+    btn.textContent = `⏳ 処理中 (${i + 1}/${targets.length}) ${safeName.slice(0, 20)}`;
+    crtLog(`>> BATCH [${i + 1}/${targets.length}]: ${safeName}`, '');
+
+    await loadForDrive(f.id, safeName);
+
+    // loadForDrive自体はエラーを内部でcatchして再throwしないため、
+    // ボタンのラベルで成否を判定する
+    const itemBtn = document.getElementById(`driveBtn_${f.id}`);
+    if (itemBtn && itemBtn.textContent.includes('完了')) {
+      ok++;
+    } else {
+      fail++;
+      crtLog(`>> BATCH [${i + 1}/${targets.length}]: 失敗 — ${safeName}`, 'err');
+    }
+  }
+
+  btn.disabled = false;
+  listBtn.disabled = false;
+  btn.textContent = `▶▶ 全部まとめて実行(先頭${targets.length}件・順番に処理)`;
+
+  crtLog(`>> BATCH COMPLETE: 成功${ok}件 / 失敗${fail}件`, fail === 0 ? 'ok' : 'warn');
+  toast(`一括処理完了: 成功${ok} / 失敗${fail} (結果はHISTORYに保存済み)`);
+
+  // 結果をまとめて確認できるようHISTORYパネルを開く
+  const panel = document.getElementById('historyPanel');
+  if (panel && !panel.classList.contains('visible')) toggleHistory();
+}
+
+
 async function summarizeCurrent() {
   const text = lastResult;
   if (!text) { toast('要約対象のテキストがありません'); return; }
