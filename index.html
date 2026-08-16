@@ -2211,7 +2211,7 @@ function sleep(ms) {
 }
 
 // レート制限対策: 失敗したら待って最大3回までリトライ
-async function transcribeChunkBlobWithRetry(blob, idx, lang, groqFmt, maxRetries = 3) {
+async function transcribeChunkBlobWithRetry(blob, idx, lang, groqFmt, maxRetries = 5) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await transcribeChunkBlob(blob, idx, lang, groqFmt);
@@ -2219,7 +2219,7 @@ async function transcribeChunkBlobWithRetry(blob, idx, lang, groqFmt, maxRetries
       const isLast = attempt === maxRetries;
       crtLog(`>> CHUNK ${idx}: ATTEMPT ${attempt}/${maxRetries} FAILED — ${e.message}`, 'err');
       if (isLast) throw e;
-      const waitMs = 3000 * attempt; // 3s, 6s, 9s...
+      const waitMs = 4000 * attempt; // 4s, 8s, 12s, 16s...
       crtLog(`>> CHUNK ${idx}: RETRY IN ${waitMs / 1000}s...`, 'warn');
       await sleep(waitMs);
     }
@@ -2273,7 +2273,7 @@ async function executeChunked(file, lang, fmt, needsVerbose, groqFmt) {
     timeOffset += (endSec - startSec);
 
     // レート制限対策: 次のチャンクまで少し間隔を空ける
-    if (i < numChunks - 1) await sleep(800);
+    if (i < numChunks - 1) await sleep(1500);
 
     crtLog(`>> CHUNK ${i + 1}/${numChunks}: DONE ✓`, 'ok');
   }
