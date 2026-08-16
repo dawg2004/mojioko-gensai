@@ -29,7 +29,7 @@ module.exports = async function handler(req, res) {
 
     const result = await drive.files.list({
       q: `'${folderId}' in parents and trashed=false and (${AUDIO_EXT_QUERY})`,
-      orderBy: 'createdTime desc',
+      orderBy: 'name desc',
       pageSize: 100,
       fields: 'files(id,name,mimeType,createdTime,size)',
       supportsAllDrives: true,
