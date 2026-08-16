@@ -1127,7 +1127,7 @@ h1 .accent { color: var(--amber); }
         <span class="drop-icon">📡</span>
         <h3>Signal Drop Zone</h3>
         <p>MP3 / WAV / M4A / MP4 / FLAC / OGG</p>
-        <p style="margin-top:4px; color: #3e4238;">MAX 300MB（25MB超は自動分割処理）</p>
+        <p style="margin-top:4px; color: #3e4238;">MAX 500MB（4MB超は自動分割処理）</p>
       </div>
       <!-- URL Input -->
       <div style="display:flex; align-items:center; gap:8px; margin:8px 0 6px;">
@@ -2003,10 +2003,10 @@ function handleFile(input) {
 }
 
 function loadFile(f) {
-  const MAX_UPLOAD_SIZE = 300 * 1024 * 1024;
+  const MAX_UPLOAD_SIZE = 500 * 1024 * 1024;
   if (f.size > MAX_UPLOAD_SIZE) {
-    showError(`ERR_413: FILE TOO LARGE (${fmtSize(f.size)}) — MAX 300MB`);
-    crtLog(`>> REJECTED: ${fmtSize(f.size)} EXCEEDS 300MB LIMIT`, 'err');
+    showError(`ERR_413: FILE TOO LARGE (${fmtSize(f.size)}) — MAX 500MB`);
+    crtLog(`>> REJECTED: ${fmtSize(f.size)} EXCEEDS 500MB LIMIT`, 'err');
     return;
   }
   currentFile = f;
