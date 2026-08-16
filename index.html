@@ -2016,8 +2016,8 @@ function loadFile(f) {
   document.getElementById('mFileSize').textContent = fmtSize(f.size);
   crtLog(`FILE LOADED: ${f.name}`, 'bright');
   crtLog(`SIZE: ${fmtSize(f.size)} | TYPE: ${f.type || 'UNKNOWN'}`, '');
-  if (f.size > CHUNK_SIZE_LIMIT) {
-    crtLog(`>> NOTE: FILE >25MB — WILL AUTO-SPLIT INTO CHUNKS ON START`, 'warn');
+  if (f.size > DIRECT_UPLOAD_LIMIT) {
+    crtLog(`>> NOTE: FILE >${fmtSize(DIRECT_UPLOAD_LIMIT)} — WILL AUTO-SPLIT INTO CHUNKS ON START`, 'warn');
   }
 }
 
@@ -2106,9 +2106,19 @@ async function resolvePlaudShareUrl(shareUrl) {
   }
 }
 
-// ── 大容量ファイル分割処理（25MB超） ──────────────────────
-const CHUNK_SIZE_LIMIT = 25 * 1024 * 1024; // Groq APIの実上限
-const CHUNK_DURATION_SEC = 600; // 1チャンクあたり10分を目安に分割（圧縮後25MB以下になるよう調整）
+// ── 大容量ファイル分割処理 ──────────────────────
+// Vercel Serverless Functionsのリクエストボディ上限(4.5MB固定・変更不可)に
+// 安全マージンを見て4MBをターゲットにチャンク長を動的計算する。
+// 25MBはGroq API自体の上限だが、実際にはVercelの4.5MB制限の方が先に効くため
+// そちらを基準にする。
+const DIRECT_UPLOAD_LIMIT = 4 * 1024 * 1024; // これを超えたら分割モードへ
+const TARGET_CHUNK_BYTES = 4 * 1024 * 1024;  // 1チャンクの目標サイズ(WAV/16bit PCM換算)
+
+function computeChunkDurationSec(audioBuffer) {
+  const bytesPerSec = audioBuffer.sampleRate * audioBuffer.numberOfChannels * 2; // 16bit PCM
+  const sec = Math.floor(TARGET_CHUNK_BYTES / bytesPerSec);
+  return Math.max(sec, 10); // 最低10秒は確保
+}
 
 // File/BlobをAudioBufferにデコード
 async function decodeAudioFile(file) {
@@ -2201,22 +2211,23 @@ async function executeChunked(file, lang, fmt, needsVerbose, groqFmt) {
   }
 
   const totalDuration = audioBuffer.duration;
-  const numChunks = Math.ceil(totalDuration / CHUNK_DURATION_SEC);
-  crtLog(`>> TOTAL DURATION: ${Math.round(totalDuration)}s — SPLITTING INTO ${numChunks} CHUNK(S)`, '');
+  const chunkDurationSec = computeChunkDurationSec(audioBuffer);
+  const numChunks = Math.ceil(totalDuration / chunkDurationSec);
+  crtLog(`>> TOTAL DURATION: ${Math.round(totalDuration)}s — SPLITTING INTO ${numChunks} CHUNK(S) (${chunkDurationSec}s/chunk)`, '');
 
   let combinedText = '';
   let combinedSegments = [];
   let timeOffset = 0;
 
   for (let i = 0; i < numChunks; i++) {
-    const startSec = i * CHUNK_DURATION_SEC;
-    const endSec = Math.min((i + 1) * CHUNK_DURATION_SEC, totalDuration);
+    const startSec = i * chunkDurationSec;
+    const endSec = Math.min((i + 1) * chunkDurationSec, totalDuration);
 
     crtLog(`>> CHUNK ${i + 1}/${numChunks}: ENCODING [${Math.round(startSec)}s-${Math.round(endSec)}s]...`, '');
     const wavBlob = audioBufferSliceToWav(audioBuffer, startSec, endSec);
 
-    if (wavBlob.size > CHUNK_SIZE_LIMIT) {
-      crtLog(`>> CHUNK ${i + 1} EXCEEDS 25MB (${fmtSize(wavBlob.size)}) — CONSIDER SHORTER CHUNK_DURATION_SEC`, 'err');
+    if (wavBlob.size > DIRECT_UPLOAD_LIMIT) {
+      crtLog(`>> CHUNK ${i + 1} EXCEEDS ${fmtSize(DIRECT_UPLOAD_LIMIT)} (${fmtSize(wavBlob.size)}) — VERCEL 413 RISK`, 'err');
     }
 
     crtLog(`>> CHUNK ${i + 1}/${numChunks}: TRANSMITTING (${fmtSize(wavBlob.size)})...`, '');
@@ -2306,8 +2317,9 @@ async function execute() {
     fetchBody = form;
   }
 
-  // 25MB超のファイルはチャンク分割モードへ
-  const isLargeFile = currentFile && currentFile.size > CHUNK_SIZE_LIMIT;
+  // DIRECT_UPLOAD_LIMIT超のファイルはチャンク分割モードへ
+  // (Vercel Serverless Functionsのリクエストボディ上限が実質4.5MBのため)
+  const isLargeFile = currentFile && currentFile.size > DIRECT_UPLOAD_LIMIT;
 
   try {
     let chunkedResult = null;
