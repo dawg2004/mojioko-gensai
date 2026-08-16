@@ -1,4 +1,4 @@
-// 文字起こしテキストの要約プロキシ: Groq LLM (llama-3.3-70b-versatile) を使用
+// 文字起こしテキストの要約プロキシ: Claude (Anthropic Messages API) を使用
 // 減災教育講演向けの要約フォーマットで出力する
 
 module.exports = async function handler(req, res) {
@@ -8,8 +8,8 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
 
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'GROQ_API_KEY_NOT_CONFIGURED' });
+  const apiKey = (process.env.ANTHROPIC_API_KEY || '').trim();
+  if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY_NOT_CONFIGURED' });
 
   const chunks = [];
   for await (const chunk of req) {
@@ -37,29 +37,35 @@ module.exports = async function handler(req, res) {
 文字起こしに含まれる言い淀み・ノイズ・重複は無視し、内容の骨子のみ抽出してください。前置きや締めの挨拶文は不要です。`;
 
   try {
-    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    // Claudeは大きなコンテキストウィンドウを持つのでGroqのLlamaのような
+    // TPM(1分あたりトークン数)制限に引っかかりにくい。長時間講演でもそのまま送る。
+    const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: text.slice(0, 60000) },
-        ],
-        temperature: 0.3,
+        model: 'claude-sonnet-5',
         max_tokens: 2048,
+        system: systemPrompt,
+        messages: [
+          { role: 'user', content: text.slice(0, 400000) },
+        ],
       }),
     });
 
-    const data = await groqRes.json();
-    if (!groqRes.ok) {
-      return res.status(groqRes.status).json({ error: data.error?.message || 'GROQ_ERROR' });
+    const data = await claudeRes.json();
+    if (!claudeRes.ok) {
+      return res.status(claudeRes.status).json({ error: data.error?.message || 'CLAUDE_ERROR' });
     }
 
-    const summary = data.choices?.[0]?.message?.content?.trim() || '';
+    const summary = (data.content || [])
+      .filter((b) => b.type === 'text')
+      .map((b) => b.text)
+      .join('')
+      .trim();
     return res.status(200).json({ summary });
   } catch (e) {
     return res.status(502).json({ error: 'PROXY_ERROR', detail: e.message });

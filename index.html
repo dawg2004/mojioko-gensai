@@ -1900,7 +1900,7 @@ async function summarizeCurrent() {
   const out = document.getElementById('summaryOutput');
   summaryBlock.classList.add('visible');
   out.textContent = '要約中...';
-  crtLog('>> SUMMARIZING via GROQ LLM...', 'warn');
+  crtLog('>> SUMMARIZING via CLAUDE...', 'warn');
   try {
     const res = await fetch('/api/summarize', {
       method: 'POST',
