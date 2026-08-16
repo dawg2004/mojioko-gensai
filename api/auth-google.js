@@ -29,7 +29,7 @@ module.exports = async function handler(req, res) {
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline', // refresh tokenをもらうために必須
     prompt: 'consent',      // 毎回refresh tokenを再発行させるために必須
-    scope: ['https://www.googleapis.com/auth/drive.readonly'],
+    scope: ['https://www.googleapis.com/auth/drive'], // 読み書き両方(文字起こし結果のアップロード用に書き込み権限も必要)
   });
 
   res.writeHead(302, { Location: authUrl });

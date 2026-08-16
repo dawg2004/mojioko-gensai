@@ -1271,6 +1271,7 @@ h1 .accent { color: var(--amber); }
       <div class="output-toolbar">
         <button class="tool-btn" onclick="copyResult()">[ COPY ]</button>
         <button class="tool-btn" onclick="downloadResult()">[ DOWNLOAD .TXT ]</button>
+        <button class="tool-btn" onclick="saveResultToDrive()">[ DRIVEに保存 ]</button>
         <button class="tool-btn" onclick="clearOutput()">[ CLEAR ]</button>
         <button class="tool-btn" id="historyToggleBtn" onclick="toggleHistory()">[ HISTORY ]</button>
         <button class="tool-btn" id="summarizeBtn" onclick="summarizeCurrent()">[ 要約する ]</button>
@@ -2523,6 +2524,41 @@ function copyTranslation() {
 function downloadResult() {
   if (!lastResult) { toast('データなし'); return; }
   dl(lastResult, 'transcription.txt');
+}
+
+// アップロード先のフォルダID(共有してもらったフォルダ)
+const DRIVE_UPLOAD_FOLDER_ID = '1AZ7Vg9JEkwtXEP4_mCg517F-_quIb_st';
+
+async function saveResultToDrive() {
+  if (!lastResult) { toast('データなし'); return; }
+
+  const baseName = (currentFile && currentFile.name)
+    ? currentFile.name.replace(/\.[^/.]+$/, '')
+    : `transcription_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}`;
+  const filename = `${baseName}.txt`;
+
+  crtLog(`>> DRIVE UPLOAD: ${filename} を送信中...`, 'warn');
+  toast('Driveにアップロード中...');
+
+  try {
+    const res = await fetch('/api/drive-upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename,
+        content: lastResult,
+        folderId: DRIVE_UPLOAD_FOLDER_ID,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || data.error || `HTTP ${res.status}`);
+
+    crtLog(`>> DRIVE UPLOAD: 完了 — ${data.name}`, 'ok');
+    toast('Driveに保存しました');
+  } catch (e) {
+    crtLog(`>> DRIVE UPLOAD ERR: ${e.message}`, 'err');
+    showError(`ERR_DRIVE_UPLOAD: ${e.message}`);
+  }
 }
 
 function downloadTranslation() {
