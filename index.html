@@ -2211,7 +2211,7 @@ function sleep(ms) {
 }
 
 // レート制限対策: 失敗したら待って最大3回までリトライ
-async function transcribeChunkBlobWithRetry(blob, idx, lang, groqFmt, maxRetries = 5) {
+async function transcribeChunkBlobWithRetry(blob, idx, lang, groqFmt, maxRetries = 8) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await transcribeChunkBlob(blob, idx, lang, groqFmt);
@@ -2219,7 +2219,9 @@ async function transcribeChunkBlobWithRetry(blob, idx, lang, groqFmt, maxRetries
       const isLast = attempt === maxRetries;
       crtLog(`>> CHUNK ${idx}: ATTEMPT ${attempt}/${maxRetries} FAILED — ${e.message}`, 'err');
       if (isLast) throw e;
-      const waitMs = 4000 * attempt; // 4s, 8s, 12s, 16s...
+      // 5s, 10s, 15s, 20s, 25s, 30s, 35s... 段階的に長くしてGroq/Cloudflare側の
+      // 一時的な不調(502等)が収まるのを待つ
+      const waitMs = Math.min(5000 * attempt, 40000);
       crtLog(`>> CHUNK ${idx}: RETRY IN ${waitMs / 1000}s...`, 'warn');
       await sleep(waitMs);
     }
