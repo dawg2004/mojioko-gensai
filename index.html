@@ -2189,7 +2189,13 @@ async function transcribeChunkBlob(blob, idx, lang, groqFmt) {
   const res = await fetch('/api/whisper', { method: 'POST', body: form });
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
-    try { const j = await res.json(); msg = j.error?.message || (typeof j.error === 'string' ? j.error : null) || msg; } catch(e) {}
+    const raw = await res.text();
+    try {
+      const j = JSON.parse(raw);
+      msg = j.error?.message || (typeof j.error === 'string' ? j.error : null) || msg;
+    } catch (e) {
+      if (raw) msg = `${msg}: ${raw.slice(0, 300)}`;
+    }
     throw new Error(`CHUNK ${idx}: ${msg}`);
   }
   if (groqFmt === 'verbose_json' || groqFmt === 'json') {
