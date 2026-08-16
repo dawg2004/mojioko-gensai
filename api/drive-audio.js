@@ -25,11 +25,11 @@ module.exports = async function handler(req, res) {
     const auth = getAuth();
     const drive = google.drive({ version: 'v3', auth });
 
-    const meta = await drive.files.get({ fileId, fields: 'name,mimeType,size' });
+    const meta = await drive.files.get({ fileId, fields: 'name,mimeType,size', supportsAllDrives: true });
     const { name, mimeType } = meta.data;
 
     const fileRes = await drive.files.get(
-      { fileId, alt: 'media' },
+      { fileId, alt: 'media', supportsAllDrives: true },
       { responseType: 'stream' }
     );
 

@@ -41,6 +41,9 @@ module.exports = async function handler(req, res) {
       orderBy: 'createdTime desc',
       pageSize: 100,
       fields: 'files(id,name,mimeType,createdTime,size)',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      corpora: 'allDrives',
     });
 
     return res.status(200).json({ files: result.data.files || [] });
