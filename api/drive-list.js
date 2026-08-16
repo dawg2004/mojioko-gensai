@@ -1,17 +1,8 @@
 // Google Drive フォルダ内の音声ファイル一覧を取得
-// サービスアカウント認証（GOOGLE_SERVICE_ACCOUNT_KEY: JSON鍵をbase64エンコードしたもの）
+// OAuth2認証（サービスアカウントキーは組織ポリシーでブロックされているため使用不可）
 
 const { google } = require('googleapis');
-
-function getAuth() {
-  const b64 = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  if (!b64) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY_NOT_CONFIGURED');
-  const json = JSON.parse(Buffer.from(b64, 'base64').toString('utf-8'));
-  return new google.auth.GoogleAuth({
-    credentials: json,
-    scopes: ['https://www.googleapis.com/auth/drive.readonly'],
-  });
-}
+const { getOAuthClient } = require('../lib/googleAuth');
 
 const AUDIO_EXT_QUERY = [
   "name contains '.ogg'",
@@ -33,7 +24,7 @@ module.exports = async function handler(req, res) {
   if (!folderId) return res.status(400).json({ error: 'MISSING_FOLDER_ID' });
 
   try {
-    const auth = getAuth();
+    const auth = getOAuthClient();
     const drive = google.drive({ version: 'v3', auth });
 
     const result = await drive.files.list({
