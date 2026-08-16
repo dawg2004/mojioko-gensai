@@ -1770,7 +1770,7 @@ async function loadDriveList() {
   try {
     const res = await fetch('/api/drive-list');
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    if (!res.ok) throw new Error(data.detail ? `${data.error}: ${data.detail}` : (data.error || `HTTP ${res.status}`));
     const files = data.files || [];
     driveFilesCache = files;
     const runAllBtn = document.getElementById('driveRunAllBtn');
