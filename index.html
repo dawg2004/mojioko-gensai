@@ -1279,6 +1279,12 @@ h1 .accent { color: var(--amber); }
 
       <div class="history-panel" id="historyPanel">
         <div class="history-panel-header">
+          <span class="history-panel-title">// DRIVE PROCESSED FILES (永続・上限なし)</span>
+          <button class="tool-btn" onclick="clearProcessedFiles()" style="font-size:12px;padding:4px 8px;">[ CLEAR ]</button>
+        </div>
+        <div class="history-list" id="processedFilesList"></div>
+
+        <div class="history-panel-header" style="margin-top:16px;">
           <span class="history-panel-title">// TRANSCRIPTION HISTORY (MAX 30)</span>
           <button class="tool-btn" onclick="clearAllHistory()" style="font-size:12px;padding:4px 8px;">[ CLEAR ALL ]</button>
         </div>
@@ -1775,6 +1781,42 @@ function markFileProcessed(fileId, fileName) {
   const map = getProcessedMap();
   map[fileId] = { name: fileName, at: new Date().toISOString() };
   localStorage.setItem(PROCESSED_KEY, JSON.stringify(map));
+  renderProcessedFiles();
+}
+
+function renderProcessedFiles() {
+  const el = document.getElementById('processedFilesList');
+  if (!el) return;
+  const map = getProcessedMap();
+  const entries = Object.entries(map).sort((a, b) => new Date(b[1].at) - new Date(a[1].at));
+  if (!entries.length) {
+    el.innerHTML = '<div class="history-empty">NO PROCESSED FILES YET</div>';
+    return;
+  }
+  el.innerHTML = entries.map(([fileId, info]) => {
+    const d = new Date(info.at);
+    const dateStr = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    return `<div class="history-item">
+      <div class="history-item-meta">${dateStr}<br>済</div>
+      <div class="history-item-preview">${info.name}</div>
+      <button class="history-item-del" onclick="deleteProcessedFile('${fileId}')" title="記録削除">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function deleteProcessedFile(fileId) {
+  const map = getProcessedMap();
+  delete map[fileId];
+  localStorage.setItem(PROCESSED_KEY, JSON.stringify(map));
+  renderProcessedFiles();
+  toast('記録を削除しました');
+}
+
+function clearProcessedFiles() {
+  if (!confirm('処理済みファイルの記録を全て削除しますか？(Drive上のファイルは削除されません)')) return;
+  localStorage.removeItem(PROCESSED_KEY);
+  renderProcessedFiles();
+  toast('処理済み記録を全削除しました');
 }
 
 function isFileProcessed(fileId) {
@@ -2722,6 +2764,7 @@ function toggleHistory() {
   const btn = document.getElementById('historyToggleBtn');
   if (panel.classList.toggle('visible')) {
     renderHistory();
+    renderProcessedFiles();
     btn.textContent = '[ HISTORY ▲ ]';
   } else {
     btn.textContent = '[ HISTORY ]';
