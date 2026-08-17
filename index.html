@@ -1847,6 +1847,73 @@ function formatProcessedDate(iso) {
   }
 }
 
+const DRIVE_LIST_CACHE_KEY = 'mojioko_drive_list_cache';
+
+function saveDriveListCache(files) {
+  try {
+    localStorage.setItem(DRIVE_LIST_CACHE_KEY, JSON.stringify({ files, cachedAt: new Date().toISOString() }));
+  } catch (e) { /* 容量オーバー等は無視 */ }
+}
+
+function loadDriveListCache() {
+  try { return JSON.parse(localStorage.getItem(DRIVE_LIST_CACHE_KEY) || 'null'); }
+  catch (e) { return null; }
+}
+
+function renderDriveList(files) {
+  const list = document.getElementById('driveList');
+  const runAllBtn = document.getElementById('driveRunAllBtn');
+  driveFilesCache = files;
+  list.classList.add('visible');
+
+  if (!files.length) {
+    list.innerHTML = '<div class="rec-list-header">NO AUDIO FILES FOUND</div>';
+    if (runAllBtn) runAllBtn.disabled = true;
+    return;
+  }
+  if (runAllBtn) {
+    runAllBtn.disabled = false;
+    const n = Math.min(files.length, 10);
+    runAllBtn.textContent = `▶▶ 全部まとめて実行(先頭${n}件・順番に処理)`;
+  }
+  list.innerHTML = `<div class="rec-list-header">DRIVE // ${files.length} FILES</div>`;
+  files.forEach(f => {
+    const safeName = (f.name || '').replace(/['"]/g, '');
+    const date = f.createdTime
+      ? new Date(f.createdTime).toLocaleDateString('ja-JP', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })
+      : '—';
+    const size = f.size ? fmtSize(Number(f.size)) : '—';
+    const processed = getProcessedMap()[f.id];
+    const badge = processed
+      ? `<span style="color:var(--green-bright, #3fb950); font-size:11px; margin-left:6px;">✓済 (${formatProcessedDate(processed.at)})</span>`
+      : '';
+    const div = document.createElement('div');
+    div.className = 'recording-item';
+    div.innerHTML = `
+      <div class="rec-name" title="${safeName}">${safeName}${badge}</div>
+      <div class="rec-date">${date} | ${size}</div>
+      <div class="rec-actions">
+        <button class="rec-btn whisper" id="driveBtn_${f.id}" onclick="loadForDrive('${f.id}','${safeName}')">${processed ? '↻ 再実行' : '▶ 文字起こし+要約'}</button>
+        <button class="rec-btn whisper" id="bgBtn_${f.id}" onclick="bgTranscribeDriveFile('${f.id}','${safeName}')" title="サーバー側で処理。実行後は画面を閉じてOK、終わったらDriveに自動保存されます">☁ バックグラウンド実行</button>
+      </div>`;
+    list.appendChild(div);
+  });
+}
+
+// ページ読み込み時、キャッシュがあれば再取得せずそのまま表示する
+function restoreDriveListFromCache() {
+  const cached = loadDriveListCache();
+  if (!cached || !cached.files) return;
+  renderDriveList(cached.files);
+  const btn = document.getElementById('driveListBtn');
+  if (btn) {
+    const d = new Date(cached.cachedAt);
+    const dateStr = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    btn.textContent = `📁 更新する (最終取得: ${dateStr})`;
+  }
+  crtLog(`>> DRIVE: キャッシュから復元 (${cached.files.length}件, 最終取得 ${cached.cachedAt})`, '');
+}
+
 async function loadDriveList() {
   const btn = document.getElementById('driveListBtn');
   const list = document.getElementById('driveList');
@@ -1860,48 +1927,15 @@ async function loadDriveList() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail ? `${data.error}: ${data.detail}` : (data.error || `HTTP ${res.status}`));
     const files = data.files || [];
-    driveFilesCache = files;
-    const runAllBtn = document.getElementById('driveRunAllBtn');
-    if (!files.length) {
-      list.innerHTML = '<div class="rec-list-header">NO AUDIO FILES FOUND</div>';
-      crtLog('>> DRIVE: ファイルなし', 'warn');
-      if (runAllBtn) runAllBtn.disabled = true;
-      return;
-    }
-    if (runAllBtn) {
-      runAllBtn.disabled = false;
-      const n = Math.min(files.length, 10);
-      runAllBtn.textContent = `▶▶ 全部まとめて実行(先頭${n}件・順番に処理)`;
-    }
-    list.innerHTML = `<div class="rec-list-header">DRIVE // ${files.length} FILES</div>`;
-    files.forEach(f => {
-      const safeName = (f.name || '').replace(/['"]/g, '');
-      const date = f.createdTime
-        ? new Date(f.createdTime).toLocaleDateString('ja-JP', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })
-        : '—';
-      const size = f.size ? fmtSize(Number(f.size)) : '—';
-      const processed = getProcessedMap()[f.id];
-      const badge = processed
-        ? `<span style="color:var(--green-bright, #3fb950); font-size:11px; margin-left:6px;">✓済 (${formatProcessedDate(processed.at)})</span>`
-        : '';
-      const div = document.createElement('div');
-      div.className = 'recording-item';
-      div.innerHTML = `
-        <div class="rec-name" title="${safeName}">${safeName}${badge}</div>
-        <div class="rec-date">${date} | ${size}</div>
-        <div class="rec-actions">
-          <button class="rec-btn whisper" id="driveBtn_${f.id}" onclick="loadForDrive('${f.id}','${safeName}')">${processed ? '↻ 再実行' : '▶ 文字起こし+要約'}</button>
-          <button class="rec-btn whisper" id="bgBtn_${f.id}" onclick="bgTranscribeDriveFile('${f.id}','${safeName}')" title="サーバー側で処理。実行後は画面を閉じてOK、終わったらDriveに自動保存されます">☁ バックグラウンド実行</button>
-        </div>`;
-      list.appendChild(div);
-    });
+    renderDriveList(files);
+    saveDriveListCache(files);
     crtLog(`>> DRIVE: ${files.length}件 取得完了`, 'ok');
   } catch (e) {
     list.innerHTML = `<div style="padding:10px;font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--red-bright);">ERR: ${e.message}</div>`;
     crtLog(`>> DRIVE ERR: ${e.message}`, 'err');
   } finally {
     btn.disabled = false;
-    btn.textContent = '📁 DRIVEフォルダから一覧取得';
+    if (btn.textContent === '⏳ 取得中...') btn.textContent = '📁 DRIVEフォルダから一覧取得';
   }
 }
 
@@ -2834,6 +2868,10 @@ if ('serviceWorker' in navigator) {
     });
   });
 }
+
+// 起動時、Drive一覧のキャッシュがあれば再取得せずそのまま復元表示する
+restoreDriveListFromCache();
+
 
 </script>
 </body>
