@@ -2848,17 +2848,34 @@ function clearAllHistory() {
   renderHistory();
   toast('全履歴削除 // ALL CLEARED');
 }
+const HISTORY_OPEN_KEY = 'mojioko_history_panel_open';
+
 function toggleHistory() {
   const panel = document.getElementById('historyPanel');
   const btn = document.getElementById('historyToggleBtn');
-  if (panel.classList.toggle('visible')) {
+  const isVisible = panel.classList.toggle('visible');
+  if (isVisible) {
     renderHistory();
     renderProcessedFiles();
     btn.textContent = '[ HISTORY ▲ ]';
   } else {
     btn.textContent = '[ HISTORY ]';
   }
+  localStorage.setItem(HISTORY_OPEN_KEY, isVisible ? '1' : '0');
 }
+
+// 起動時、前回開いてたかどうかを復元する
+function restoreHistoryPanelState() {
+  if (localStorage.getItem(HISTORY_OPEN_KEY) !== '1') return;
+  const panel = document.getElementById('historyPanel');
+  const btn = document.getElementById('historyToggleBtn');
+  if (!panel || !btn) return;
+  panel.classList.add('visible');
+  btn.textContent = '[ HISTORY ▲ ]';
+  renderHistory();
+  renderProcessedFiles();
+}
+
 
 // PWA: サービスワーカー登録(UIシェルのキャッシュ、ホーム画面起動を高速化)
 if ('serviceWorker' in navigator) {
@@ -2871,6 +2888,8 @@ if ('serviceWorker' in navigator) {
 
 // 起動時、Drive一覧のキャッシュがあれば再取得せずそのまま復元表示する
 restoreDriveListFromCache();
+// 起動時、HISTORYパネルの開閉状態も復元する
+restoreHistoryPanelState();
 
 
 </script>
