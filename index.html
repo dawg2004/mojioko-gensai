@@ -1887,18 +1887,13 @@ function renderDriveList(files) {
     const badge = processed
       ? `<span style="color:var(--green-bright, #3fb950); font-size:11px; margin-left:6px;">✓済 (${formatProcessedDate(processed.at)})</span>`
       : '';
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const clientBtnOnclick = isMobile
-      ? `if(confirm('端末側で処理します。長い音声だとブラウザがクラッシュすることがあります。☁バックグラウンド実行の方が安定します。続けますか？')) loadForDrive('${f.id}','${safeName}')`
-      : `loadForDrive('${f.id}','${safeName}')`;
     const div = document.createElement('div');
     div.className = 'recording-item';
     div.innerHTML = `
       <div class="rec-name" title="${safeName}">${safeName}${badge}</div>
       <div class="rec-date">${date} | ${size}</div>
       <div class="rec-actions">
-        <button class="rec-btn whisper" id="bgBtn_${f.id}" onclick="bgTranscribeDriveFile('${f.id}','${safeName}')" title="サーバー側で処理。実行後は画面を閉じてOK、終わったらDriveに自動保存されます">☁ バックグラウンド実行(推奨)</button>
-        <button class="rec-btn whisper" id="driveBtn_${f.id}" onclick="${clientBtnOnclick}">${processed ? '↻ 再実行(端末側)' : '▶ 文字起こし+要約(端末側)'}</button>
+        <button class="rec-btn whisper" id="bgBtn_${f.id}" onclick="bgTranscribeDriveFile('${f.id}','${safeName}')" title="サーバー側で処理。実行後は画面を閉じてOK、終わったらDriveに自動保存されます">${processed ? '↻ 再実行' : '☁ バックグラウンド実行'}</button>
       </div>`;
     list.appendChild(div);
   });
@@ -1978,46 +1973,11 @@ async function bgTranscribeDriveFile(fileId, fileName) {
     crtLog(`>> BG JOB ERR: ${e.message}`, 'err');
     showError(`ERR_BG_JOB: ${e.message}`);
     if (btn) { btn.disabled = false; btn.textContent = '☁ バックグラウンド実行(再試行)'; }
+    throw e;
   }
 }
 
-async function loadForDrive(fileId, fileName) {
-  const btn = document.getElementById(`driveBtn_${fileId}`);
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ DL中...'; }
-  document.getElementById('mStatus').textContent = 'DL';
-  document.getElementById('errorBlock').classList.remove('visible');
-  crtLog(`>> DRIVE: ダウンロード中 ${fileName}`, 'warn');
-  try {
-    const res = await fetch(`/api/drive-audio?fileId=${encodeURIComponent(fileId)}`);
-    if (!res.ok) {
-      let msg = `HTTP ${res.status}`;
-      try { const j = await res.json(); msg = j.error || msg; } catch(e) {}
-      throw new Error(msg);
-    }
-    const blob = await res.blob();
-    currentFile = new File([blob], fileName, { type: blob.type || 'audio/mpeg' });
-    document.getElementById('fileLoaded').classList.add('visible');
-    document.getElementById('fName').textContent = currentFile.name;
-    document.getElementById('fSize').textContent = fmtSize(currentFile.size);
-    document.getElementById('mFileSize').textContent = fmtSize(currentFile.size);
-    crtLog(`>> DRIVE: ロード完了 ${fmtSize(currentFile.size)}`, 'ok');
-    if (btn) btn.textContent = '⏳ 文字起こし中...';
-    await execute();
-    if (lastResult) {
-      if (btn) btn.textContent = '⏳ 要約中...';
-      await summarizeCurrent();
-    }
-    if (btn) btn.textContent = '✓ 完了';
-    markFileProcessed(fileId, fileName);
-  } catch (e) {
-    document.getElementById('mStatus').textContent = 'FAIL';
-    crtLog(`>> DRIVE ERR: ${e.message}`, 'err');
-    showError('DRIVE ERR: ' + e.message);
-    if (btn) { btn.textContent = '▶ 文字起こし+要約'; btn.disabled = false; }
-  }
-}
-
-// ── Drive 一括処理 (最大10件を順番に文字起こし+要約 → 結果はHISTORYに自動蓄積) ──
+// ── Drive 一括処理 (最大10件を順番にバックグラウンドジョブで処理 → 各結果はDriveに自動保存) ──
 async function runAllDrive() {
   if (!driveFilesCache.length) { toast('先に一覧取得してください'); return; }
 
@@ -2029,7 +1989,7 @@ async function runAllDrive() {
   listBtn.disabled = true;
   let ok = 0, fail = 0;
 
-  crtLog(`>> BATCH START: ${targets.length}件を順番に処理`, 'warn');
+  crtLog(`>> BATCH START: ${targets.length}件を順番に処理(バックグラウンドジョブ)`, 'warn');
 
   for (let i = 0; i < targets.length; i++) {
     const f = targets[i];
@@ -2037,14 +1997,10 @@ async function runAllDrive() {
     btn.textContent = `⏳ 処理中 (${i + 1}/${targets.length}) ${safeName.slice(0, 20)}`;
     crtLog(`>> BATCH [${i + 1}/${targets.length}]: ${safeName}`, '');
 
-    await loadForDrive(f.id, safeName);
-
-    // loadForDrive自体はエラーを内部でcatchして再throwしないため、
-    // ボタンのラベルで成否を判定する
-    const itemBtn = document.getElementById(`driveBtn_${f.id}`);
-    if (itemBtn && itemBtn.textContent.includes('完了')) {
+    try {
+      await bgTranscribeDriveFile(f.id, safeName);
       ok++;
-    } else {
+    } catch (e) {
       fail++;
       crtLog(`>> BATCH [${i + 1}/${targets.length}]: 失敗 — ${safeName}`, 'err');
     }
