@@ -1891,6 +1891,7 @@ async function loadDriveList() {
         <div class="rec-date">${date} | ${size}</div>
         <div class="rec-actions">
           <button class="rec-btn whisper" id="driveBtn_${f.id}" onclick="loadForDrive('${f.id}','${safeName}')">${processed ? '↻ 再実行' : '▶ 文字起こし+要約'}</button>
+          <button class="rec-btn whisper" id="bgBtn_${f.id}" onclick="bgTranscribeDriveFile('${f.id}','${safeName}')" title="サーバー側で処理。実行後は画面を閉じてOK、終わったらDriveに自動保存されます">☁ バックグラウンド実行</button>
         </div>`;
       list.appendChild(div);
     });
@@ -1901,6 +1902,44 @@ async function loadDriveList() {
   } finally {
     btn.disabled = false;
     btn.textContent = '📁 DRIVEフォルダから一覧取得';
+  }
+}
+
+// ── バックグラウンド文字起こし(サーバー側で完結、画面を閉じてもOK) ──
+async function bgTranscribeDriveFile(fileId, fileName) {
+  const btn = document.getElementById(`bgBtn_${fileId}`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ サーバー処理中...'; }
+  crtLog(`>> BG JOB START: ${fileName}`, 'warn');
+  toast('サーバー側で処理開始。画面を閉じてもOK、終わったらDriveに自動保存されます');
+
+  try {
+    const res = await fetch('/api/drive-transcribe-job', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileId,
+        fileName,
+        saveFolderId: DRIVE_UPLOAD_FOLDER_ID,
+        lang: document.getElementById('langSelect') ? document.getElementById('langSelect').value : 'ja',
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || data.error || `HTTP ${res.status}`);
+
+    if (data.status === 'partial') {
+      crtLog(`>> BG JOB PARTIAL: ${data.processedSegments}/${data.totalSegments}件 処理 → ${data.savedFile.name} に保存`, 'warn');
+      toast(`途中まで完了(${data.processedSegments}/${data.totalSegments})。再実行すると最初から再処理されます`);
+      if (btn) { btn.disabled = false; btn.textContent = '☁ バックグラウンド実行(再試行)'; }
+    } else {
+      crtLog(`>> BG JOB DONE: ${data.savedFile.name} をDriveに保存しました`, 'ok');
+      toast(`完了: ${data.savedFile.name} をDriveに保存しました`);
+      markFileProcessed(fileId, fileName);
+      if (btn) { btn.disabled = false; btn.textContent = '✓ 完了(Driveに保存済み)'; }
+    }
+  } catch (e) {
+    crtLog(`>> BG JOB ERR: ${e.message}`, 'err');
+    showError(`ERR_BG_JOB: ${e.message}`);
+    if (btn) { btn.disabled = false; btn.textContent = '☁ バックグラウンド実行(再試行)'; }
   }
 }
 

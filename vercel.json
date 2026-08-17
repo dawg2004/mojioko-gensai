@@ -3,6 +3,7 @@
   "functions": {
     "api/drive-audio.js": { "maxDuration": 60 },
     "api/whisper.js": { "maxDuration": 60 },
-    "api/summarize.js": { "maxDuration": 60 }
+    "api/summarize.js": { "maxDuration": 60 },
+    "api/drive-transcribe-job.js": { "maxDuration": 60 }
   }
 }
