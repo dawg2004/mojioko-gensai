@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>mojioko — PLAUDwebのURLシェアで文字起こし</title>
 <meta name="description" content="PLAUDの共有URLを貼るだけで音声を文字起こし。Groq Whisper搭載。">
 <meta property="og:title" content="PLAUDwebのURLシェアで文字起こし">
@@ -12,6 +12,18 @@
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="PLAUDwebのURLシェアで文字起こし">
 <meta name="twitter:description" content="PLAUDの共有URLを貼るだけで音声を文字起こし。Groq Whisper搭載。">
+
+<!-- PWA -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1c1e1a">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="mojioko">
+<meta name="mobile-web-app-capable" content="yes">
+
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2774,6 +2786,16 @@ function toggleHistory() {
     btn.textContent = '[ HISTORY ]';
   }
 }
+
+// PWA: サービスワーカー登録(UIシェルのキャッシュ、ホーム画面起動を高速化)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((e) => {
+      console.warn('SW registration failed:', e);
+    });
+  });
+}
+
 </script>
 </body>
 </html>
