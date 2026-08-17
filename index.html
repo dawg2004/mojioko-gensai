@@ -1887,14 +1887,18 @@ function renderDriveList(files) {
     const badge = processed
       ? `<span style="color:var(--green-bright, #3fb950); font-size:11px; margin-left:6px;">✓済 (${formatProcessedDate(processed.at)})</span>`
       : '';
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const clientBtnOnclick = isMobile
+      ? `if(confirm('端末側で処理します。長い音声だとブラウザがクラッシュすることがあります。☁バックグラウンド実行の方が安定します。続けますか？')) loadForDrive('${f.id}','${safeName}')`
+      : `loadForDrive('${f.id}','${safeName}')`;
     const div = document.createElement('div');
     div.className = 'recording-item';
     div.innerHTML = `
       <div class="rec-name" title="${safeName}">${safeName}${badge}</div>
       <div class="rec-date">${date} | ${size}</div>
       <div class="rec-actions">
-        <button class="rec-btn whisper" id="driveBtn_${f.id}" onclick="loadForDrive('${f.id}','${safeName}')">${processed ? '↻ 再実行' : '▶ 文字起こし+要約'}</button>
-        <button class="rec-btn whisper" id="bgBtn_${f.id}" onclick="bgTranscribeDriveFile('${f.id}','${safeName}')" title="サーバー側で処理。実行後は画面を閉じてOK、終わったらDriveに自動保存されます">☁ バックグラウンド実行</button>
+        <button class="rec-btn whisper" id="bgBtn_${f.id}" onclick="bgTranscribeDriveFile('${f.id}','${safeName}')" title="サーバー側で処理。実行後は画面を閉じてOK、終わったらDriveに自動保存されます">☁ バックグラウンド実行(推奨)</button>
+        <button class="rec-btn whisper" id="driveBtn_${f.id}" onclick="${clientBtnOnclick}">${processed ? '↻ 再実行(端末側)' : '▶ 文字起こし+要約(端末側)'}</button>
       </div>`;
     list.appendChild(div);
   });
