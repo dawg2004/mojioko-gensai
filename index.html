@@ -1760,6 +1760,35 @@ async function loadForWhisper(fileId, fileName) {
 // ──────────────────────────────────────────────────────
 
 // ── Google Drive ──────────────────────────────────────
+// ── Drive処理済みファイルの記録(localStorageで永続化) ──────────────
+const PROCESSED_KEY = 'mojioko_processed_drive_files';
+
+function getProcessedMap() {
+  try {
+    return JSON.parse(localStorage.getItem(PROCESSED_KEY) || '{}');
+  } catch (e) {
+    return {};
+  }
+}
+
+function markFileProcessed(fileId, fileName) {
+  const map = getProcessedMap();
+  map[fileId] = { name: fileName, at: new Date().toISOString() };
+  localStorage.setItem(PROCESSED_KEY, JSON.stringify(map));
+}
+
+function isFileProcessed(fileId) {
+  return !!getProcessedMap()[fileId];
+}
+
+function formatProcessedDate(iso) {
+  try {
+    return new Date(iso).toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return '';
+  }
+}
+
 async function loadDriveList() {
   const btn = document.getElementById('driveListBtn');
   const list = document.getElementById('driveList');
@@ -1793,13 +1822,17 @@ async function loadDriveList() {
         ? new Date(f.createdTime).toLocaleDateString('ja-JP', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })
         : '—';
       const size = f.size ? fmtSize(Number(f.size)) : '—';
+      const processed = getProcessedMap()[f.id];
+      const badge = processed
+        ? `<span style="color:var(--green-bright, #3fb950); font-size:11px; margin-left:6px;">✓済 (${formatProcessedDate(processed.at)})</span>`
+        : '';
       const div = document.createElement('div');
       div.className = 'recording-item';
       div.innerHTML = `
-        <div class="rec-name" title="${safeName}">${safeName}</div>
+        <div class="rec-name" title="${safeName}">${safeName}${badge}</div>
         <div class="rec-date">${date} | ${size}</div>
         <div class="rec-actions">
-          <button class="rec-btn whisper" id="driveBtn_${f.id}" onclick="loadForDrive('${f.id}','${safeName}')">▶ 文字起こし+要約</button>
+          <button class="rec-btn whisper" id="driveBtn_${f.id}" onclick="loadForDrive('${f.id}','${safeName}')">${processed ? '↻ 再実行' : '▶ 文字起こし+要約'}</button>
         </div>`;
       list.appendChild(div);
     });
@@ -1840,6 +1873,7 @@ async function loadForDrive(fileId, fileName) {
       await summarizeCurrent();
     }
     if (btn) btn.textContent = '✓ 完了';
+    markFileProcessed(fileId, fileName);
   } catch (e) {
     document.getElementById('mStatus').textContent = 'FAIL';
     crtLog(`>> DRIVE ERR: ${e.message}`, 'err');
@@ -2133,6 +2167,24 @@ async function decodeAudioFile(file) {
   }
 }
 
+// Whisperは内部的に16kHzで処理するため、事前に16kHz・モノラルへ
+// ダウンサンプリングしてからWAV化することで、同じバイト数予算あたりの
+// 音声長を大幅に伸ばせる(=チャンク数を減らせる=処理時間を短縮できる)。
+// 音質はWhisperの認識精度に影響しない(元々16kHzに落とされるため)。
+async function downsampleTo16kMono(audioBuffer) {
+  const TARGET_RATE = 16000;
+  if (audioBuffer.sampleRate === TARGET_RATE && audioBuffer.numberOfChannels === 1) {
+    return audioBuffer; // 既に条件を満たしていれば変換不要
+  }
+  const targetLength = Math.ceil(audioBuffer.duration * TARGET_RATE);
+  const offlineCtx = new OfflineAudioContext(1, targetLength, TARGET_RATE);
+  const source = offlineCtx.createBufferSource();
+  source.buffer = audioBuffer;
+  source.connect(offlineCtx.destination);
+  source.start(0);
+  return await offlineCtx.startRendering();
+}
+
 // AudioBufferの一部区間をWAV(16bit PCM)のBlobに変換
 function audioBufferSliceToWav(audioBuffer, startSec, endSec) {
   const sampleRate = audioBuffer.sampleRate;
@@ -2238,6 +2290,8 @@ async function executeChunked(file, lang, fmt, needsVerbose, groqFmt) {
   let audioBuffer;
   try {
     audioBuffer = await decodeAudioFile(file);
+    crtLog(`>> ORIGINAL: ${audioBuffer.sampleRate}Hz / ${audioBuffer.numberOfChannels}ch — DOWNSAMPLING TO 16kHz MONO...`, '');
+    audioBuffer = await downsampleTo16kMono(audioBuffer);
   } catch (e) {
     throw new Error(`AUDIO DECODE FAILED: ${e.message}`);
   }
