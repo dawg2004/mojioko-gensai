@@ -2044,7 +2044,7 @@ async function bgTranscribeDriveFile(fileId, fileName) {
 
     if (data.status === 'partial') {
       crtLog(`>> BG JOB PARTIAL: ${data.processedSegments}/${data.totalSegments}件 処理 → ${data.savedFile.name} に保存`, 'warn');
-      toast(`途中まで完了(${data.processedSegments}/${data.totalSegments})。再実行すると最初から再処理されます`);
+      toast(`途中まで完了(${data.processedSegments}/${data.totalSegments})。もう一度実行すると続きから再開します`);
       if (btn) { btn.disabled = false; btn.textContent = '☁ バックグラウンド実行(再試行)'; }
     } else {
       crtLog(`>> BG JOB DONE: ${data.savedFile.name} をDriveに保存しました`, 'ok');

@@ -8,6 +8,12 @@
 // スマホでこのエンドポイントを叩いた後、画面をロックしてもこの処理自体は
 // Vercelのサーバー上で継続する(クライアントの接続状態に依存しない)。
 // 結果はDriveに自動保存されるので、後からDriveを確認すればよい。
+//
+// 重要: Vercelの実行時間上限(60秒)は「猶予なく強制終了」される。
+// そのため、最後にまとめて1回だけDriveに書き込む方式だと、上限到達の
+// タイミング次第で「何も保存されない」ことが起こり得る。
+// これを防ぐため、1セグメント処理が終わるたびに都度Driveへ書き込み
+// (追記更新)していく。途中で強制終了されても、それまでの分は必ず残る。
 
 const fs = require('fs');
 const os = require('os');
@@ -19,13 +25,13 @@ const ffmpegPath = require('ffmpeg-static');
 const { google } = require('googleapis');
 const { getOAuthClient } = require('../lib/googleAuth');
 
-// このVercel関数のタイムアウト内(余裕を見て)で収める時間予算
-const TIME_BUDGET_MS = 50000;
+// このVercel関数のタイムアウト(60秒・強制終了)に対して、
+// Drive書き込み等の後処理の時間も見込んでかなり手前で打ち切る
+const TIME_BUDGET_MS = 35000;
 // 1セグメントの長さ(秒)。ストリームコピーなので長くしても速度は落ちない。
-// 大きめにすることでセグメント数(=Groq呼び出し回数)を大幅に減らし、
-// 60秒のVercel実行上限に収まりやすくする。
-// (Plaud録音は音声通話品質のビットレートが多いため、15分でも通常25MBは超えない)
-const SEGMENT_SECONDS = 900; // 15分
+// ただし1セグメントの処理自体が長すぎると、その処理中に60秒の強制終了に
+// 引っかかるリスクが上がるため、程よい長さに留める。
+const SEGMENT_SECONDS = 300; // 5分
 const GROQ_MAX_RETRIES = 2;
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
@@ -93,6 +99,61 @@ async function transcribeSegmentWithRetry(apiKey, filePath, lang) {
   }
 }
 
+// Drive上の結果ファイルをupsert(無ければ作成、あれば上書き更新)する。
+// fileIdをキャッシュして、同一ジョブ内での2回目以降はupdateを使う。
+async function upsertResultFile(drive, state, folderId, name, text) {
+  const media = { mimeType: 'text/plain', body: Readable.from(Buffer.from(text, 'utf-8')) };
+  if (state.driveFileId) {
+    await drive.files.update({ fileId: state.driveFileId, media, supportsAllDrives: true });
+    if (state.currentName !== name) {
+      await drive.files.update({ fileId: state.driveFileId, requestBody: { name }, supportsAllDrives: true });
+      state.currentName = name;
+    }
+  } else {
+    const created = await drive.files.create({
+      requestBody: { name, parents: [folderId], mimeType: 'text/plain' },
+      media,
+      supportsAllDrives: true,
+      fields: 'id, name, webViewLink',
+    });
+    state.driveFileId = created.data.id;
+    state.webViewLink = created.data.webViewLink;
+    state.currentName = name;
+  }
+}
+
+// 進行中(または完了済み)の結果ファイルをDrive上で探し、あれば
+// これまでのテキストと再開位置(resumeIndex)を返す。
+// ファイル名パターン: {baseName}_進行中_{N}of{M}.txt / {baseName}.txt(完了)
+async function findExistingProgress(drive, folderId, baseName) {
+  const escaped = baseName.replace(/'/g, "\\'");
+  const result = await drive.files.list({
+    q: `'${folderId}' in parents and trashed = false and (name = '${escaped}.txt' or name contains '${escaped}_進行中_')`,
+    fields: 'files(id, name)',
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  });
+  const files = result.data.files || [];
+  if (!files.length) return null;
+
+  // 完了ファイルがあればそれで確定(再処理不要)
+  const done = files.find((f) => f.name === `${baseName}.txt`);
+  const target = done || files[0];
+
+  const content = await drive.files.get(
+    { fileId: target.id, alt: 'media', supportsAllDrives: true },
+    { responseType: 'text' }
+  );
+  const text = typeof content.data === 'string' ? content.data : '';
+
+  if (done) {
+    return { driveFileId: target.id, currentName: target.name, combinedText: text, resumeIndex: null, isDone: true };
+  }
+  const m = target.name.match(/_進行中_(\d+)of(\d+)\.txt$/);
+  const resumeIndex = m ? parseInt(m[1], 10) : 0;
+  return { driveFileId: target.id, currentName: target.name, combinedText: text, resumeIndex, isDone: false };
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -121,10 +182,27 @@ module.exports = async function handler(req, res) {
   const workDir = path.join(os.tmpdir(), `mojioko-${crypto.randomUUID()}`);
   fs.mkdirSync(workDir, { recursive: true });
   const inputPath = path.join(workDir, 'input');
+  const baseName = (fileName || `transcription_${Date.now()}`).replace(/\.[^/.]+$/, '');
+  const driveState = {}; // upsertResultFileが使う状態(fileId等)を保持
 
   try {
     const auth = getOAuthClient();
     const drive = google.drive({ version: 'v3', auth });
+
+    // 0. 既に進行中/完了済みの結果ファイルがないか確認(あれば続きから再開)
+    const existing = await findExistingProgress(drive, saveFolderId, baseName);
+    if (existing && existing.isDone) {
+      return res.status(200).json({
+        status: 'done',
+        alreadyCompleted: true,
+        savedFile: { id: existing.driveFileId, name: existing.currentName },
+        charCount: existing.combinedText.length,
+      });
+    }
+    if (existing) {
+      driveState.driveFileId = existing.driveFileId;
+      driveState.currentName = existing.currentName;
+    }
 
     // 1. Driveからダウンロード
     await downloadToFile(drive, fileId, inputPath);
@@ -139,44 +217,52 @@ module.exports = async function handler(req, res) {
       throw new Error('NO_SEGMENTS_PRODUCED');
     }
 
-    // 3. 各セグメントを順番に文字起こし(時間予算内で)
-    let combinedText = '';
-    let processedCount = 0;
+    // 3. 各セグメントを順番に文字起こし → 1件終わるたびにDriveへ都度保存
+    //    (前回の続きがあれば resumeIndex から再開し、再処理を避ける)
+    let combinedText = existing ? existing.combinedText : '';
+    let processedCount = existing ? existing.resumeIndex : 0;
     let ranOutOfTime = false;
 
-    for (const segFile of segments) {
+    for (let i = processedCount; i < segments.length; i++) {
       if (Date.now() - startedAt > TIME_BUDGET_MS) {
         ranOutOfTime = true;
         break;
       }
-      const segPath = path.join(workDir, segFile);
+      const segPath = path.join(workDir, segments[i]);
       const text = await transcribeSegmentWithRetry(groqKey, segPath, lang);
       combinedText += (combinedText ? '\n' : '') + text.trim();
       processedCount++;
       fs.unlinkSync(segPath); // 使い終わったら即削除してディスク節約
+
+      // ここで都度Driveに書き込む(強制終了されてもここまでの分は残る)
+      const inProgress = processedCount < segments.length;
+      const nameNow = inProgress
+        ? `${baseName}_進行中_${processedCount}of${segments.length}.txt`
+        : `${baseName}.txt`;
+      await upsertResultFile(drive, driveState, saveFolderId, nameNow, combinedText);
     }
 
-    // 4. 結果をDriveに保存
-    const baseName = (fileName || `transcription_${Date.now()}`).replace(/\.[^/.]+$/, '');
-    const suffix = ranOutOfTime ? `_partial_${processedCount}of${segments.length}` : '';
-    const outName = `${baseName}${suffix}.txt`;
+    if (Date.now() - startedAt > TIME_BUDGET_MS && processedCount < segments.length) {
+      ranOutOfTime = true;
+    }
 
-    const uploadResult = await drive.files.create({
-      requestBody: { name: outName, parents: [saveFolderId], mimeType: 'text/plain' },
-      media: { mimeType: 'text/plain', body: Readable.from(Buffer.from(combinedText, 'utf-8')) },
-      supportsAllDrives: true,
-      fields: 'id, name, webViewLink',
-    });
-
+    // 全部終わっていて「進行中」の名前のままなら最終名にリネーム済みのはず(ループ内で対応済み)
     return res.status(200).json({
       status: ranOutOfTime ? 'partial' : 'done',
       processedSegments: processedCount,
       totalSegments: segments.length,
-      savedFile: uploadResult.data,
+      savedFile: { id: driveState.driveFileId, name: driveState.currentName, webViewLink: driveState.webViewLink },
       charCount: combinedText.length,
     });
   } catch (e) {
-    return res.status(500).json({ error: 'JOB_FAILED', detail: e.message });
+    // 失敗時も、それまでに何か処理できていればDriveには残っているはず
+    return res.status(500).json({
+      error: 'JOB_FAILED',
+      detail: e.message,
+      partialSavedFile: driveState.driveFileId
+        ? { id: driveState.driveFileId, name: driveState.currentName }
+        : null,
+    });
   } finally {
     fs.rmSync(workDir, { recursive: true, force: true });
   }
