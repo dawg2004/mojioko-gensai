@@ -23,9 +23,10 @@ const { getOAuthClient } = require('../lib/googleAuth');
 const TIME_BUDGET_MS = 50000;
 // 1セグメントの長さ(秒)。ストリームコピーなので長くしても速度は落ちない。
 // 大きめにすることでセグメント数(=Groq呼び出し回数)を大幅に減らし、
-// 全体の処理時間と失敗リスクを下げる。
-const SEGMENT_SECONDS = 480; // 8分
-const GROQ_MAX_RETRIES = 4;
+// 60秒のVercel実行上限に収まりやすくする。
+// (Plaud録音は音声通話品質のビットレートが多いため、15分でも通常25MBは超えない)
+const SEGMENT_SECONDS = 900; // 15分
+const GROQ_MAX_RETRIES = 2;
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 

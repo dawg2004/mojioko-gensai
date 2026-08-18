@@ -2024,7 +2024,22 @@ async function bgTranscribeDriveFile(fileId, fileName) {
         lang: document.getElementById('langSelect') ? document.getElementById('langSelect').value : 'ja',
       }),
     });
-    const data = await res.json();
+
+    const rawBody = await res.text();
+    let data;
+    try {
+      data = JSON.parse(rawBody);
+    } catch (parseErr) {
+      // JSON以外(Vercelのタイムアウト時のHTMLエラーページ等)が返ってきたケース
+      if (res.status === 504 || !res.ok) {
+        throw new Error(
+          `サーバー側でタイムアウトした可能性があります(HTTP ${res.status})。` +
+          `ファイルが大きい/音声が長いと60秒の処理上限を超えることがあります。` +
+          `Driveを直接確認してみてください(部分的に保存されている場合があります)。`
+        );
+      }
+      throw new Error(`予期しないレスポンス形式です: ${rawBody.slice(0, 200)}`);
+    }
     if (!res.ok) throw new Error(data.detail || data.error || `HTTP ${res.status}`);
 
     if (data.status === 'partial') {
