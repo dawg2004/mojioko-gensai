@@ -1164,6 +1164,13 @@ h1 .accent { color: var(--amber); }
       </div>
       <button class="rec-btn whisper" style="width:100%; padding:8px; margin-bottom:6px;" id="driveListBtn" onclick="loadDriveList()">📁 DRIVEフォルダから一覧取得</button>
       <button class="rec-btn whisper" style="width:100%; padding:8px; margin-bottom:6px;" id="driveRunAllBtn" onclick="runAllDrive()" disabled>▶▶ 全部まとめて実行(最大10件・順番に処理)</button>
+      <input
+        type="text"
+        id="driveSearchBox"
+        placeholder="🔍 ファイル名で検索..."
+        style="display:none; width:100%; box-sizing:border-box; margin-bottom:6px; padding:8px 10px; background:var(--panel3); border:1px solid var(--border2); color:var(--text-bright); font-family:'Share Tech Mono',monospace; font-size:13px;"
+        oninput="renderDriveListFiltered(this.value)"
+      >
       <div class="recordings-list" id="driveList"></div>
 
       <div class="file-loaded" id="fileLoaded">
@@ -1906,22 +1913,38 @@ function loadDriveListCache() {
 }
 
 function renderDriveList(files) {
-  const list = document.getElementById('driveList');
-  const runAllBtn = document.getElementById('driveRunAllBtn');
   driveFilesCache = files;
-  list.classList.add('visible');
-
-  if (!files.length) {
-    list.innerHTML = '<div class="rec-list-header">NO AUDIO FILES FOUND</div>';
-    if (runAllBtn) runAllBtn.disabled = true;
-    return;
-  }
+  const runAllBtn = document.getElementById('driveRunAllBtn');
   if (runAllBtn) {
-    runAllBtn.disabled = false;
+    runAllBtn.disabled = !files.length;
     const n = Math.min(files.length, 10);
     runAllBtn.textContent = `▶▶ 全部まとめて実行(先頭${n}件・順番に処理)`;
   }
-  list.innerHTML = `<div class="rec-list-header">DRIVE // ${files.length} FILES</div>`;
+  const searchBox = document.getElementById('driveSearchBox');
+  if (searchBox) searchBox.style.display = files.length ? 'block' : 'none';
+  renderDriveListFiltered(searchBox ? searchBox.value : '');
+}
+
+// 検索キーワードでフィルタして表示するだけの関数(driveFilesCache自体は変更しない)
+function renderDriveListFiltered(query) {
+  const list = document.getElementById('driveList');
+  list.classList.add('visible');
+
+  const q = (query || '').trim().toLowerCase();
+  const files = q
+    ? driveFilesCache.filter(f => (f.name || '').toLowerCase().includes(q))
+    : driveFilesCache;
+
+  if (!driveFilesCache.length) {
+    list.innerHTML = '<div class="rec-list-header">NO AUDIO FILES FOUND</div>';
+    return;
+  }
+  if (!files.length) {
+    list.innerHTML = `<div class="rec-list-header">DRIVE // 0 / ${driveFilesCache.length} FILES (該当なし)</div>`;
+    return;
+  }
+
+  list.innerHTML = `<div class="rec-list-header">DRIVE // ${files.length}${q ? ` / ${driveFilesCache.length}` : ''} FILES</div>`;
   files.forEach(f => {
     const safeName = (f.name || '').replace(/['"]/g, '');
     const date = f.createdTime
