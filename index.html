@@ -1782,7 +1782,49 @@ async function loadForWhisper(fileId, fileName) {
 // ──────────────────────────────────────────────────────
 
 // ── Google Drive ──────────────────────────────────────
-// ── Drive処理済みファイルの記録(localStorageで永続化) ──────────────
+// ── アプリ状態(履歴・処理済み記録)のDrive同期 ──────────────
+// iOSのホーム画面PWAはlocalStorageが端末側の都合で消えることがあるため、
+// Driveをソース・オブ・トゥルースとして同期する(Mac/スマホ間でも共有される)。
+let appStateSyncTimer = null;
+function syncAppStateToDrive() {
+  clearTimeout(appStateSyncTimer);
+  appStateSyncTimer = setTimeout(async () => {
+    try {
+      const state = {
+        history: loadHistory(),
+        processedFiles: getProcessedMap(),
+      };
+      await fetch('/api/app-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderId: DRIVE_UPLOAD_FOLDER_ID, state }),
+      });
+    } catch (e) {
+      console.warn('app-state sync failed:', e);
+    }
+  }, 1500); // 連続操作をまとめて1回の書き込みにする
+}
+
+async function loadAppStateFromDrive() {
+  try {
+    const res = await fetch(`/api/app-state?folderId=${encodeURIComponent(DRIVE_UPLOAD_FOLDER_ID)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (Array.isArray(data.history)) {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(data.history));
+    }
+    if (data.processedFiles && typeof data.processedFiles === 'object') {
+      localStorage.setItem(PROCESSED_KEY, JSON.stringify(data.processedFiles));
+    }
+    renderHistory();
+    renderProcessedFiles();
+    crtLog('>> APP STATE: Driveから復元しました', 'ok');
+  } catch (e) {
+    console.warn('app-state load failed:', e);
+  }
+}
+
+// ── Drive処理済みファイルの記録(localStorage + Drive同期で永続化) ──────────────
 const PROCESSED_KEY = 'mojioko_processed_drive_files';
 
 function getProcessedMap() {
@@ -1798,6 +1840,7 @@ function markFileProcessed(fileId, fileName) {
   map[fileId] = { name: fileName, at: new Date().toISOString() };
   localStorage.setItem(PROCESSED_KEY, JSON.stringify(map));
   renderProcessedFiles();
+  syncAppStateToDrive();
 }
 
 function renderProcessedFiles() {
@@ -1825,6 +1868,7 @@ function deleteProcessedFile(fileId) {
   delete map[fileId];
   localStorage.setItem(PROCESSED_KEY, JSON.stringify(map));
   renderProcessedFiles();
+  syncAppStateToDrive();
   toast('記録を削除しました');
 }
 
@@ -1832,6 +1876,7 @@ function clearProcessedFiles() {
   if (!confirm('処理済みファイルの記録を全て削除しますか？(Drive上のファイルは削除されません)')) return;
   localStorage.removeItem(PROCESSED_KEY);
   renderProcessedFiles();
+  syncAppStateToDrive();
   toast('処理済み記録を全削除しました');
 }
 
@@ -2762,6 +2807,7 @@ function saveHistory(text, source) {
   if (list.length > HISTORY_MAX) list.splice(HISTORY_MAX);
   saveHistoryList(list);
   renderHistory();
+  syncAppStateToDrive();
 }
 function renderHistory() {
   const list = loadHistory();
@@ -2800,12 +2846,14 @@ function deleteHistory(i) {
   list.splice(i, 1);
   saveHistoryList(list);
   renderHistory();
+  syncAppStateToDrive();
   toast('削除 // DELETED');
 }
 function clearAllHistory() {
   if (!confirm('全履歴を削除しますか？')) return;
   localStorage.removeItem(HISTORY_KEY);
   renderHistory();
+  syncAppStateToDrive();
   toast('全履歴削除 // ALL CLEARED');
 }
 const HISTORY_OPEN_KEY = 'mojioko_history_panel_open';
@@ -2850,6 +2898,9 @@ if ('serviceWorker' in navigator) {
 restoreDriveListFromCache();
 // 起動時、HISTORYパネルの開閉状態も復元する
 restoreHistoryPanelState();
+// 起動時、Drive上に保存されたアプリ状態(履歴・処理済み記録)で復元する
+// (iOSのホーム画面PWAでlocalStorageが消えてもDrive側の記録から復旧できる)
+loadAppStateFromDrive();
 
 
 </script>
