@@ -2054,7 +2054,16 @@ async function bgTranscribeDriveFile(fileId, fileName) {
     }
   } catch (e) {
     crtLog(`>> BG JOB ERR: ${e.message}`, 'err');
-    showError(`ERR_BG_JOB: ${e.message}`);
+    const isNetworkDrop = /load failed|network|fetch/i.test(e.message);
+    if (isNetworkDrop) {
+      showError(
+        `ERR_BG_JOB: ${e.message}\n` +
+        `※これは端末側の接続切断(バックグラウンド移行等)による表示の可能性が高いです。` +
+        `サーバー側の処理は継続している場合があるので、数分後にGoogle Driveを直接確認してください。`
+      );
+    } else {
+      showError(`ERR_BG_JOB: ${e.message}`);
+    }
     if (btn) { btn.disabled = false; btn.textContent = '☁ バックグラウンド実行(再試行)'; }
     throw e;
   }
