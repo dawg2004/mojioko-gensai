@@ -2054,17 +2054,13 @@ async function bgTranscribeDriveFile(fileId, fileName) {
     }
   } catch (e) {
     crtLog(`>> BG JOB ERR: ${e.message}`, 'err');
-    const isNetworkDrop = /load failed|network|fetch/i.test(e.message);
-    if (isNetworkDrop) {
-      showError(
-        `ERR_BG_JOB: ${e.message}\n` +
-        `※これは端末側の接続切断(バックグラウンド移行等)による表示の可能性が高いです。` +
-        `サーバー側の処理は継続している場合があるので、数分後にGoogle Driveを直接確認してください。`
-      );
-    } else {
-      showError(`ERR_BG_JOB: ${e.message}`);
-    }
-    if (btn) { btn.disabled = false; btn.textContent = '☁ バックグラウンド実行(再試行)'; }
+    showError(
+      `ERR_BG_JOB: ${e.message}\n` +
+      `※ブラウザ側の表示エラーで、サーバー側の処理は継続・一部完了している場合があります。` +
+      `Google Driveの保存先フォルダに「_進行中_」付きのファイルができていないか確認してください。` +
+      `できていれば、同じボタンをもう一度押すと続きから再開されます。`
+    );
+    if (btn) { btn.disabled = false; btn.textContent = '☁ バックグラウンド実行(続きから再開)'; }
     throw e;
   }
 }
