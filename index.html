@@ -1549,7 +1549,7 @@ function updatePlaudDot() {
 
 async function plaudFetch(path) {
   // Vercel proxy経由でCORSを回避
-  const res = await fetch(`/api/plaud-proxy?path=${encodeURIComponent(path)}`, {
+  const res = await fetch(`/api/plaud?action=proxy&path=${encodeURIComponent(path)}`, {
     headers: {
       'Authorization': `Bearer ${plaudToken}`,
       'X-Plaud-Base': plaudApiBase
@@ -1582,7 +1582,7 @@ async function loginPlaud() {
 
   crtLog('>> AUTHENTICATING VIA PROXY...', '');
   try {
-    const res = await fetch('/api/plaud-auth', {
+    const res = await fetch('/api/plaud?action=auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
@@ -2323,7 +2323,7 @@ async function resolvePlaudShareUrl(shareUrl) {
   crtLog('>> RESOLVING PLAUD SHARE URL...', 'warn');
 
   try {
-    const res = await fetch('/api/plaud-share', {
+    const res = await fetch('/api/plaud?action=share', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
