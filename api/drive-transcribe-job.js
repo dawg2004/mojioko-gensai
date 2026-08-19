@@ -50,9 +50,21 @@ async function downloadToFile(drive, fileId, destPath) {
   });
 }
 
-function segmentAudio(inputPath, outDir) {
+// Groqが受け付ける拡張子: flac mp3 mp4 mpeg mpga m4a ogg opus wav webm
+// 元ファイルの拡張子がこの中にあればそのまま使う(同じコンテナ族なので
+// ストリームコピーで安全)。無ければogg(このNPOの主な音源形式)にフォールバック。
+const GROQ_ACCEPTED_EXT = new Set(['flac', 'mp3', 'mp4', 'mpeg', 'mpga', 'm4a', 'ogg', 'opus', 'wav', 'webm']);
+function pickSegmentExt(fileName) {
+  const m = (fileName || '').match(/\.([a-zA-Z0-9]+)$/);
+  const ext = m ? m[1].toLowerCase() : '';
+  return GROQ_ACCEPTED_EXT.has(ext) ? ext : 'ogg';
+}
+
+function segmentAudio(inputPath, outDir, segExt) {
   return new Promise((resolve, reject) => {
-    const pattern = path.join(outDir, 'seg_%04d.ts');
+    // Groqが受け付けるフォーマットに含まれる拡張子にする必要がある
+    // (.tsのような非対応拡張子だと"invalid_request_error"で弾かれる)
+    const pattern = path.join(outDir, `seg_%04d.${segExt}`);
     const ff = spawn(ffmpegPath, [
       '-y',
       '-i', inputPath,
@@ -236,7 +248,7 @@ module.exports = async function handler(req, res) {
     await downloadToFile(drive, fileId, inputPath);
 
     // 2. ffmpegでセグメント分割(ストリームコピーなので高速・音質劣化なし)
-    await segmentAudio(inputPath, workDir);
+    await segmentAudio(inputPath, workDir, pickSegmentExt(fileName));
     const segments = fs.readdirSync(workDir)
       .filter((f) => f.startsWith('seg_'))
       .sort();
