@@ -15,7 +15,7 @@
 
 <!-- PWA -->
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#1c1e1a">
+<meta name="theme-color" content="#0a0a12">
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -25,99 +25,98 @@
 <meta name="mobile-web-app-capable" content="yes">
 
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #1c1e1a;
-  --panel: #252820;
-  --panel2: #2e3129;
-  --panel3: #1a1c18;
-  --rivet: #3a3d36;
-  --border: #3d4038;
-  --border2: #4e5247;
-  --amber: #d4860a;
-  --amber-dim: #7a4e08;
-  --amber-bright: #f5a623;
-  --green: #4caf50;
-  --green-dim: #2d6630;
-  --green-bright: #72ff76;
-  --red: #c0392b;
-  --red-bright: #ff4f3b;
-  --text: #c8cbbe;
-  --text-dim: #6b6f63;
-  --text-bright: #e8ead8;
-  --screw: #30332d;
+  --bg: #0a0a12;
+  --panel: #14141f;
+  --panel2: #1a1a29;
+  --panel3: #0d0d15;
+  --rivet: transparent;
+  --border: #26263a;
+  --border2: #34344c;
+  --amber: #8b5cf6;
+  --amber-dim: #5b3fa0;
+  --amber-bright: #a78bfa;
+  --green: #22c55e;
+  --green-dim: #15803d;
+  --green-bright: #4ade80;
+  --red: #ef4444;
+  --red-bright: #f87171;
+  --text: #d4d4e4;
+  --text-dim: #82829c;
+  --text-bright: #ffffff;
+  --screw: transparent;
+  --accent-grad: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+  --radius: 14px;
+  --radius-sm: 10px;
 }
 
 body {
   background: var(--bg);
-  background-image: 
-    repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.08) 3px, rgba(0,0,0,0.08) 4px),
-    repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(124,58,237,0.15), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(168,85,247,0.10), transparent);
+  background-attachment: fixed;
   min-height: 100vh;
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   color: var(--text);
   padding: 0;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Screw corners */
-.screw {
-  position: absolute;
-  width: 12px; height: 12px;
-  background: var(--screw);
-  border-radius: 50%;
-  border: 1px solid var(--border2);
-  z-index: 10;
-}
-.screw::after {
-  content: '';
-  position: absolute;
-  top: 50%; left: 10%;
-  width: 80%; height: 1px;
-  background: var(--border2);
-  transform: translateY(-50%) rotate(45deg);
-}
-.screw.tl { top: 8px; left: 8px; }
-.screw.tr { top: 8px; right: 8px; }
-.screw.bl { bottom: 8px; left: 8px; }
-.screw.br { bottom: 8px; right: 8px; }
+/* Screw corners (廃止 - 非表示) */
+.screw { display: none; }
 
 /* Header */
 .header {
-  background: var(--panel3);
-  border-bottom: 3px solid var(--amber);
-  padding: 16px 32px;
+  background: rgba(20,20,31,0.85);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 18px 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .header-left {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 16px;
 }
 
 .sys-id {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
   color: var(--text-dim);
-  letter-spacing: 0.15em;
+  letter-spacing: 0.1em;
+  background: var(--panel2);
   border: 1px solid var(--border);
-  padding: 3px 8px;
+  border-radius: 6px;
+  padding: 4px 10px;
 }
 
 h1 {
-  font-size: 36px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   color: var(--text-bright);
   line-height: 1;
 }
 
-h1 .accent { color: var(--amber); }
+h1 .accent {
+  background: var(--accent-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
 
 .header-right {
   display: flex;
@@ -132,62 +131,70 @@ h1 .accent { color: var(--amber); }
 }
 
 .led {
-  width: 10px; height: 10px;
+  width: 8px; height: 8px;
   border-radius: 50%;
-  border: 1px solid rgba(0,0,0,0.5);
 }
 
-.led.green { background: var(--green); box-shadow: 0 0 6px var(--green); }
-.led.amber { background: var(--amber); }
-.led.red { background: var(--red); }
-.led.off { background: #1e2019; border-color: var(--border); }
+.led.green { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.led.amber { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+.led.red { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.led.off { background: #2a2a3d; }
 
 .model-tag {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 11px;
-  color: var(--amber);
-  letter-spacing: 0.12em;
-  border-left: 2px solid var(--amber);
-  padding-left: 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--amber-bright);
+  letter-spacing: 0;
+  background: linear-gradient(135deg, rgba(124,58,237,0.15), rgba(168,85,247,0.08));
+  border: 1px solid rgba(139,92,246,0.3);
+  border-radius: 20px;
+  padding: 5px 14px;
 }
 
 /* Main layout */
 .main {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 340px 1fr;
   grid-template-rows: auto 1fr;
-  gap: 0;
+  gap: 20px;
   min-height: calc(100vh - 75px);
+  padding: 20px;
+  max-width: 1600px;
+  margin: 0 auto;
 }
 
 /* Panel shared styles */
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
+  border-radius: var(--radius);
   position: relative;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+  overflow: hidden;
 }
 
 .panel-header {
-  background: var(--panel3);
+  background: transparent;
   border-bottom: 1px solid var(--border);
-  padding: 10px 16px 10px 24px;
+  padding: 16px 20px;
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
 .panel-label {
-  font-size: 11px;
-  letter-spacing: 0.2em;
+  font-size: 13px;
+  letter-spacing: 0;
   font-weight: 700;
-  color: var(--text-dim);
-  text-transform: uppercase;
+  color: var(--text-bright);
 }
 
 .panel-label .num {
-  color: var(--amber-dim);
-  font-family: 'Share Tech Mono', monospace;
+  color: var(--amber-bright);
+  font-family: 'JetBrains Mono', monospace;
   margin-right: 6px;
+  opacity: 0.6;
 }
 
 .panel-body { padding: 20px; }
@@ -196,7 +203,7 @@ h1 .accent { color: var(--amber); }
 .input-panel {
   grid-column: 1;
   grid-row: 1 / 3;
-  border-right: 2px solid var(--border2);
+  border-right: none;
   display: flex;
   flex-direction: column;
 }
@@ -205,8 +212,8 @@ h1 .accent { color: var(--amber); }
 .section-divider {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 20px 0 14px;
+  gap: 10px;
+  margin: 22px 0 14px;
 }
 
 .divider-line {
@@ -216,23 +223,30 @@ h1 .accent { color: var(--amber); }
 }
 
 .divider-text {
-  font-size: 12px;
-  letter-spacing: 0.2em;
+  font-size: 11px;
+  letter-spacing: 0.1em;
   color: var(--text-dim);
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
   white-space: nowrap;
 }
 
 /* File drop zone */
 .drop-zone {
-  border: 1px dashed var(--border2);
-  background: var(--panel3);
-  padding: 28px 16px;
+  border: 1.5px dashed var(--border2);
+  background: var(--panel2);
+  border-radius: var(--radius-sm);
+  padding: 32px 16px;
   text-align: center;
   cursor: pointer;
   transition: all 0.2s;
   position: relative;
   overflow: hidden;
+}
+
+.drop-zone:hover {
+  border-color: var(--amber);
+  background: rgba(139,92,246,0.06);
 }
 
 .drop-zone::before {
@@ -246,7 +260,7 @@ h1 .accent { color: var(--amber); }
 
 .drop-zone:hover, .drop-zone.drag-over {
   border-color: var(--amber);
-  background: rgba(212, 134, 10, 0.05);
+  background: rgba(139, 92, 246, 0.06);
 }
 
 .drop-zone:hover::before, .drop-zone.drag-over::before {
@@ -262,24 +276,24 @@ h1 .accent { color: var(--amber); }
 }
 
 .drop-icon {
-  font-size: 32px;
+  font-size: 30px;
   margin-bottom: 10px;
   display: block;
-  filter: grayscale(1);
-  opacity: 0.5;
+  filter: none;
+  opacity: 0.9;
 }
 
 .drop-zone h3 {
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--text);
+  letter-spacing: 0;
+  color: var(--text-bright);
   margin-bottom: 4px;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .drop-zone p {
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'Inter', sans-serif;
   font-size: 12px;
   color: var(--text-dim);
 }
@@ -287,24 +301,26 @@ h1 .accent { color: var(--amber); }
 /* File loaded indicator */
 .file-loaded {
   display: none;
-  background: var(--panel3);
-  border: 1px solid var(--green-dim);
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   padding: 12px 14px;
   margin-top: 12px;
   position: relative;
 }
 
 .file-loaded.visible { display: flex; align-items: center; gap: 10px; }
-.file-loaded-led { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+.file-loaded-led { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; box-shadow: 0 0 6px var(--green); }
 .file-loaded-info { flex: 1; overflow: hidden; }
-.file-loaded-name { font-size: 12px; font-weight: 600; color: var(--text-bright); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.file-loaded-size { font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--text-dim); }
+.file-loaded-name { font-size: 13px; font-weight: 600; color: var(--text-bright); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-loaded-size { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-dim); }
 
 .clear-btn {
   background: none;
   border: 1px solid var(--border2);
+  border-radius: 6px;
   color: var(--text-dim);
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'Inter', sans-serif;
   font-size: 12px;
   padding: 4px 8px;
   cursor: pointer;
@@ -325,20 +341,22 @@ h1 .accent { color: var(--amber); }
 .param-row:last-child { border-bottom: none; }
 
 .param-label {
-  font-size: 11px;
-  letter-spacing: 0.1em;
+  font-size: 13px;
+  letter-spacing: 0;
   color: var(--text-dim);
-  text-transform: uppercase;
-  font-weight: 600;
+  text-transform: none;
+  font-weight: 500;
 }
 
 .param-select {
-  background: var(--panel3);
+  background: var(--panel2);
   border: 1px solid var(--border2);
+  border-radius: 8px;
   color: var(--text-bright);
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 11px;
-  padding: 5px 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 6px 12px;
   outline: none;
   cursor: pointer;
   transition: border-color 0.2s;
@@ -350,8 +368,9 @@ h1 .accent { color: var(--amber); }
 
 /* API key field */
 .api-row {
-  background: var(--panel3);
+  background: var(--panel2);
   border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   padding: 12px 14px;
   display: flex;
   align-items: center;
@@ -359,12 +378,12 @@ h1 .accent { color: var(--amber); }
 }
 
 .api-tag {
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'Inter', sans-serif;
   font-size: 12px;
-  color: var(--amber-dim);
-  letter-spacing: 0.15em;
+  color: var(--amber-bright);
+  letter-spacing: 0;
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .api-input {
@@ -373,7 +392,7 @@ h1 .accent { color: var(--amber); }
   border: none;
   border-bottom: 1px solid var(--border2);
   color: var(--text);
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   padding: 3px 6px;
   outline: none;
@@ -399,18 +418,20 @@ h1 .accent { color: var(--amber); }
   width: 100%;
   padding: 16px;
   margin-top: 20px;
-  background: var(--panel3);
-  border: 2px solid var(--amber-dim);
-  color: var(--amber);
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 18px;
-  font-weight: 900;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
+  background: var(--accent-grad);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
   cursor: pointer;
   transition: all 0.15s;
   position: relative;
   overflow: hidden;
+  box-shadow: 0 4px 20px rgba(124,58,237,0.35);
 }
 
 .execute-btn::before {
@@ -418,46 +439,47 @@ h1 .accent { color: var(--amber); }
   position: absolute;
   top: 0; left: -100%;
   width: 100%; height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(212,134,10,0.08), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
   transition: left 0.4s;
 }
 
 .execute-btn:hover::before { left: 100%; }
 
 .execute-btn:hover {
-  border-color: var(--amber-bright);
-  color: var(--amber-bright);
-  background: rgba(212,134,10,0.06);
+  filter: brightness(1.08);
+  box-shadow: 0 6px 28px rgba(124,58,237,0.5);
 }
 
 .execute-btn:active { transform: scale(0.98); }
 
 .execute-btn:disabled {
-  border-color: var(--border2);
+  background: var(--panel2);
+  border: 1px solid var(--border2);
   color: var(--text-dim);
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
 }
 
 .execute-btn.ready {
-  border-color: var(--green);
-  color: var(--green-bright);
-  background: rgba(76,175,80,0.07);
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+  box-shadow: 0 4px 20px rgba(34,197,94,0.4);
   animation: btn-pulse 1.4s ease-in-out infinite;
 }
 
 @keyframes btn-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(76,175,80,0.0); }
-  50% { box-shadow: 0 0 12px 3px rgba(76,175,80,0.35); }
+  0%, 100% { box-shadow: 0 4px 20px rgba(34,197,94,0.3); }
+  50% { box-shadow: 0 4px 28px rgba(34,197,94,0.6); }
 }
 
 /* Usage meter */
 .usage-meter {
   margin-top: 10px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
-  background: var(--panel3);
-  font-family: 'Share Tech Mono', monospace;
+  border-radius: var(--radius-sm);
+  background: var(--panel2);
+  font-family: 'Inter', sans-serif;
 }
 .usage-meter-header {
   display: flex;
@@ -468,39 +490,43 @@ h1 .accent { color: var(--amber); }
 .usage-label {
   font-size: 12px;
   color: var(--text-dim);
-  letter-spacing: 0.15em;
+  letter-spacing: 0;
+  font-weight: 500;
 }
 .usage-numbers {
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
-  color: var(--amber);
-  letter-spacing: 0.05em;
+  color: var(--amber-bright);
+  letter-spacing: 0.02em;
 }
-.usage-numbers.warn { color: #e67e22; }
+.usage-numbers.warn { color: #f59e0b; }
 .usage-numbers.over { color: var(--red-bright); }
 .usage-bar-track {
   width: 100%;
-  height: 4px;
+  height: 5px;
+  border-radius: 3px;
   background: var(--border);
   margin-bottom: 5px;
+  overflow: hidden;
 }
 .usage-bar-fill {
   height: 100%;
-  background: var(--amber-dim);
+  background: var(--accent-grad);
   transition: width 0.4s ease, background 0.3s;
 }
-.usage-bar-fill.warn { background: #e67e22; }
+.usage-bar-fill.warn { background: #f59e0b; }
 .usage-bar-fill.over { background: var(--red-bright); }
 .usage-note {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--text-dim);
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
 }
 
 /* Right panels */
 .status-panel {
   grid-column: 2;
   grid-row: 1;
-  border-bottom: 1px solid var(--border);
+  border-bottom: none;
 }
 
 .output-panel {
@@ -510,38 +536,34 @@ h1 .accent { color: var(--amber); }
 
 /* CRT display */
 .crt-display {
-  background: #0a0d09;
-  border: 2px solid var(--border);
+  background: var(--panel3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   margin-bottom: 16px;
   padding: 14px 16px;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 12px;
-  line-height: 1.6;
-  color: #5c8a4a;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #8888a8;
   min-height: 80px;
   position: relative;
   overflow: hidden;
 }
 
-.crt-display::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(0deg, rgba(0,0,0,0), rgba(0,0,0,0) 2px, rgba(0,0,0,0.12) 2px, rgba(0,0,0,0.12) 4px);
-  pointer-events: none;
-}
+.crt-display::after { content: none; }
 
-.crt-line { color: #3d5c30; }
-.crt-line.bright { color: #7ab860; }
-.crt-line.warn { color: var(--amber); }
+.crt-line { color: #8888a8; }
+.crt-line.bright { color: var(--text-bright); }
+.crt-line.warn { color: var(--amber-bright); }
 .crt-line.err { color: var(--red-bright); }
 .crt-line.ok { color: var(--green-bright); }
 
 /* Progress bar */
 .progress-track {
   height: 6px;
+  border-radius: 3px;
   background: var(--panel3);
-  border: 1px solid var(--border);
+  border: none;
   overflow: hidden;
   margin-bottom: 16px;
   display: none;
@@ -552,15 +574,8 @@ h1 .accent { color: var(--amber); }
 .progress-fill {
   height: 100%;
   width: 0%;
-  background: repeating-linear-gradient(
-    90deg,
-    var(--amber) 0px,
-    var(--amber) 8px,
-    var(--amber-dim) 8px,
-    var(--amber-dim) 12px
-  );
+  background: var(--accent-grad);
   transition: width 0.4s;
-  animation: march 1s linear infinite;
 }
 
 @keyframes march {
@@ -576,19 +591,20 @@ h1 .accent { color: var(--amber); }
 }
 
 .meter-box {
-  background: var(--panel3);
+  background: var(--panel2);
   border: 1px solid var(--border);
-  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  padding: 12px 12px;
   text-align: center;
 }
 
 .meter-val {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 18px;
-  color: var(--amber);
-  font-weight: 400;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 19px;
+  color: var(--amber-bright);
+  font-weight: 600;
   line-height: 1;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
 }
 
 .meter-label {
@@ -600,13 +616,14 @@ h1 .accent { color: var(--amber); }
 
 /* Output area */
 .output-area {
-  background: #0e110d;
+  background: var(--panel3);
   border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   padding: 20px;
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
   line-height: 1.9;
-  color: #a0b890;
+  color: #b8b8d0;
   min-height: 200px;
   white-space: pre-wrap;
   word-break: break-word;
@@ -614,8 +631,7 @@ h1 .accent { color: var(--amber); }
 }
 
 .output-area::before {
-  content: '> ';
-  color: var(--amber-dim);
+  content: '';
 }
 
 /* Output toolbar */
@@ -627,19 +643,21 @@ h1 .accent { color: var(--amber); }
 }
 
 .tool-btn {
-  background: var(--panel3);
+  background: var(--panel2);
   border: 1px solid var(--border2);
-  color: var(--text-dim);
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 12px;
-  padding: 7px 14px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 12.5px;
+  padding: 8px 16px;
+  border-radius: 8px;
   cursor: pointer;
-  letter-spacing: 0.1em;
+  letter-spacing: 0;
   transition: all 0.15s;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
-.tool-btn:hover { border-color: var(--amber-dim); color: var(--amber); }
+.tool-btn:hover { border-color: var(--amber); color: var(--amber-bright); background: rgba(139,92,246,0.08); }
 
 /* History panel */
 .history-panel {
@@ -656,10 +674,11 @@ h1 .accent { color: var(--amber); }
   margin-bottom: 10px;
 }
 .history-panel-title {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
   color: var(--text-dim);
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
 }
 .history-list {
   display: flex;
@@ -669,27 +688,28 @@ h1 .accent { color: var(--amber); }
   overflow-y: auto;
 }
 .history-item {
-  background: var(--panel3);
+  background: var(--panel2);
   border: 1px solid var(--border);
-  padding: 8px 10px;
+  border-radius: 8px;
+  padding: 10px 12px;
   cursor: pointer;
   transition: border-color 0.15s;
   display: flex;
   gap: 10px;
   align-items: flex-start;
 }
-.history-item:hover { border-color: var(--amber-dim); }
+.history-item:hover { border-color: var(--amber); }
 .history-item-meta {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
   color: var(--text-dim);
   white-space: nowrap;
   flex-shrink: 0;
   padding-top: 1px;
 }
 .history-item-preview {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -697,8 +717,8 @@ h1 .accent { color: var(--amber); }
   flex: 1;
 }
 .history-item-del {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
   color: var(--text-dim);
   background: none;
   border: none;
@@ -709,8 +729,8 @@ h1 .accent { color: var(--amber); }
 }
 .history-item-del:hover { color: var(--red-bright); }
 .history-empty {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
   color: var(--text-dim);
   text-align: center;
   padding: 20px 0;
@@ -734,22 +754,26 @@ h1 .accent { color: var(--amber); }
 }
 
 .translation-tag {
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'Inter', sans-serif;
   font-size: 12px;
-  color: var(--green);
-  letter-spacing: 0.2em;
-  border: 1px solid var(--green-dim);
-  padding: 3px 8px;
+  font-weight: 700;
+  color: var(--green-bright);
+  letter-spacing: 0;
+  background: rgba(34,197,94,0.1);
+  border: 1px solid rgba(34,197,94,0.3);
+  border-radius: 20px;
+  padding: 3px 10px;
 }
 
 .translation-output {
-  background: #0a100a;
-  border: 1px solid var(--green-dim);
+  background: var(--panel3);
+  border: 1px solid rgba(34,197,94,0.25);
+  border-radius: var(--radius-sm);
   padding: 16px;
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
   line-height: 1.9;
-  color: #80a870;
+  color: #8fd39a;
   white-space: pre-wrap;
   word-break: break-word;
   min-height: 80px;
@@ -758,11 +782,12 @@ h1 .accent { color: var(--amber); }
 /* Error block */
 .error-block {
   display: none;
-  background: rgba(192,57,43,0.06);
-  border: 1px solid var(--red);
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.4);
+  border-radius: var(--radius-sm);
   padding: 12px 16px;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 11px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
   color: var(--red-bright);
   margin-top: 12px;
 }
@@ -774,12 +799,15 @@ h1 .accent { color: var(--amber); }
   position: fixed;
   bottom: 24px;
   right: 24px;
-  background: var(--panel3);
+  background: var(--panel2);
   border: 1px solid var(--green);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
   color: var(--green-bright);
   padding: 10px 18px;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 11px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 12.5px;
   letter-spacing: 0.1em;
   opacity: 0;
   transform: translateY(8px);
@@ -802,7 +830,7 @@ h1 .accent { color: var(--amber); }
   background: var(--panel3);
   border: 1px solid var(--green-dim);
   color: var(--green);
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   padding: 5px 14px;
   cursor: pointer;
@@ -827,7 +855,7 @@ h1 .accent { color: var(--amber); }
   background: var(--panel3);
   border: none;
   color: var(--text-dim);
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   letter-spacing: 0.1em;
   padding: 7px 4px;
@@ -857,7 +885,7 @@ h1 .accent { color: var(--amber); }
   background: var(--panel3);
   border: 1px solid var(--border2);
   color: var(--text);
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -874,7 +902,7 @@ h1 .accent { color: var(--amber); }
 }
 
 .google-icon {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 900;
   font-size: 16px;
   color: #4285f4;
@@ -905,7 +933,7 @@ h1 .accent { color: var(--amber); }
 }
 
 .login-divider span {
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   color: var(--text-dim);
   letter-spacing: 0.1em;
@@ -919,7 +947,7 @@ h1 .accent { color: var(--amber); }
 }
 
 .bookmarklet-step {
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   color: var(--text-dim);
   margin-bottom: 8px;
@@ -937,7 +965,7 @@ h1 .accent { color: var(--amber); }
   background: var(--panel3);
   border: 2px dashed var(--amber-dim);
   color: var(--amber);
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   padding: 10px 14px;
   text-align: center;
@@ -955,7 +983,7 @@ h1 .accent { color: var(--amber); }
 }
 
 .bookmarklet-note {
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   color: var(--text-dim);
   text-align: center;
@@ -963,7 +991,7 @@ h1 .accent { color: var(--amber); }
 }
 
 .plaud-status {
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   color: var(--text-dim);
   margin-top: 6px;
@@ -987,66 +1015,73 @@ h1 .accent { color: var(--amber); }
 .recordings-list.visible { display: block; }
 
 .rec-list-header {
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'Inter', sans-serif;
   font-size: 12px;
-  letter-spacing: 0.2em;
-  color: var(--amber-dim);
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--border);
-  background: var(--panel3);
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--text-dim);
+  padding: 8px 4px;
+  border-bottom: none;
+  background: transparent;
   position: sticky;
   top: 0;
 }
 
 .recording-item {
-  border-bottom: 1px solid var(--border);
-  padding: 8px 10px;
-  transition: background 0.1s;
+  border-bottom: none;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  transition: all 0.15s;
 }
 
-.recording-item:hover { background: rgba(255,255,255,0.02); }
-.recording-item:last-child { border-bottom: none; }
+.recording-item:hover { background: var(--panel); border-color: var(--border2); transform: translateY(-1px); }
+.recording-item:last-child { border-bottom: 1px solid var(--border); }
 
 .rec-name {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-bright);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-bottom: 3px;
+  margin-bottom: 4px;
 }
 
 .rec-date {
-  font-family: 'Share Tech Mono', monospace;
+  font-family: 'Inter', sans-serif;
   font-size: 12px;
   color: var(--text-dim);
-  margin-bottom: 6px;
+  margin-bottom: 10px;
 }
 
-.rec-actions { display: flex; gap: 4px; }
+.rec-actions { display: flex; gap: 6px; }
 
 .rec-btn {
-  background: transparent;
+  background: var(--panel2);
   border: 1px solid var(--border2);
-  color: var(--text-dim);
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 12px;
-  padding: 3px 7px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 12.5px;
+  padding: 8px 10px;
+  border-radius: 8px;
   cursor: pointer;
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
   transition: all 0.15s;
   flex: 1;
   text-align: center;
 }
 
-.rec-btn.transcript { border-color: var(--green-dim); color: var(--green); }
-.rec-btn.transcript:hover { background: rgba(76,175,80,0.1); border-color: var(--green); }
-.rec-btn.whisper { border-color: var(--amber-dim); color: var(--amber); }
-.rec-btn.whisper:hover { background: rgba(212,134,10,0.08); border-color: var(--amber); }
-.rec-btn.play { border-color: rgba(100,180,255,0.4); color: #6ab4ff; }
-.rec-btn.play:hover { background: rgba(100,180,255,0.1); border-color: #6ab4ff; }
-.rec-btn.play.playing { background: rgba(100,180,255,0.15); border-color: #6ab4ff; color: #fff; }
+.rec-btn.transcript { border-color: rgba(34,197,94,0.4); color: var(--green-bright); }
+.rec-btn.transcript:hover { background: rgba(34,197,94,0.1); border-color: var(--green); }
+.rec-btn.whisper { border: none; background: var(--accent-grad); color: #fff; box-shadow: 0 2px 12px rgba(124,58,237,0.35); }
+.rec-btn.whisper:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.rec-btn.play { border-color: rgba(96,165,250,0.4); color: #60a5fa; }
+.rec-btn.play:hover { background: rgba(96,165,250,0.1); border-color: #60a5fa; }
+.rec-btn.play.playing { background: rgba(96,165,250,0.15); border-color: #60a5fa; color: #fff; }
 .rec-player { margin-top: 6px; }
 .rec-player audio { width: 100%; height: 32px; filter: invert(1) hue-rotate(180deg); opacity: 0.85; }
 
@@ -1080,6 +1115,7 @@ h1 .accent { color: var(--amber); }
   .plaud-tab { font-size: 12px; padding: 6px 6px; }
   .plaud-controls { flex-wrap: wrap; gap: 4px; }
   .plaud-connect-btn { flex: 1; min-width: 80px; }
+  .param-row { flex-direction: column; align-items: flex-start; gap: 6px; }
   .param-select { width: 100%; }
 
   /* ドロップゾーン */
@@ -1106,11 +1142,9 @@ h1 .accent { color: var(--amber); }
 
 <!-- Header -->
 <div class="header">
-  <div class="screw tl"></div>
-  <div class="screw tr"></div>
   <div class="header-left">
-    <div class="sys-id">SYS-ID: WSP-2026-A1</div>
-    <h1>mojioko-GENSAI</h1>
+    <h1>MOJI<span class="accent">OKO</span></h1>
+    <div class="sys-id">減災協会 内部ツール</div>
   </div>
   <div class="header-right">
     <div class="led-row">
@@ -1118,7 +1152,7 @@ h1 .accent { color: var(--amber); }
       <div class="led amber" id="procLed" title="PROCESSING"></div>
       <div class="led off" title="ERROR"></div>
     </div>
-    <div class="model-tag">MODEL: WHISPER-LARGE-V3-TURBO // GROQ</div>
+    <div class="model-tag">Whisper Large V3 Turbo × Groq</div>
   </div>
 </div>
 
@@ -1128,27 +1162,27 @@ h1 .accent { color: var(--amber); }
     <div class="screw tl"></div>
     <div class="screw tr"></div>
     <div class="panel-header">
-      <div class="panel-label"><span class="num">01 //</span> INPUT CONTROL</div>
+      <div class="panel-label"><span class="num">01</span> 音声入力</div>
     </div>
     <div class="panel-body" style="flex:1; overflow-y:auto;">
 
       <!-- File Upload -->
       <div class="section-divider">
         <div class="divider-line"></div>
-        <span class="divider-text">AUDIO INPUT</span>
+        <span class="divider-text">ファイルをドロップ</span>
         <div class="divider-line"></div>
       </div>
       <div class="drop-zone" id="dropZone">
         <input type="file" id="audioFile" accept="audio/*,video/*,.mp3,.wav,.m4a,.mp4,.ogg,.flac,.webm" onchange="handleFile(this)">
         <span class="drop-icon">📡</span>
-        <h3>Signal Drop Zone</h3>
+        <h3>ファイル選択 / ドラッグ&ドロップ</h3>
         <p>MP3 / WAV / M4A / MP4 / FLAC / OGG</p>
-        <p style="margin-top:4px; color: #3e4238;">MAX 500MB（4MB超は自動分割処理）</p>
+        <p style="margin-top:4px; color: var(--text-dim); opacity:0.7;">MAX 500MB（4MB超は自動分割処理）</p>
       </div>
       <!-- URL Input -->
       <div style="display:flex; align-items:center; gap:8px; margin:8px 0 6px;">
         <div class="divider-line"></div>
-        <span style="font-size:12px; color:var(--text-dim); white-space:nowrap; font-family:'Share Tech Mono',monospace; letter-spacing:0.15em;">OR URL</span>
+        <span style="font-size:12px; color:var(--text-dim); white-space:nowrap; font-family:'Inter', sans-serif; font-weight:600;">またはURL</span>
         <div class="divider-line"></div>
       </div>
       <div class="api-row">
@@ -1159,7 +1193,7 @@ h1 .accent { color: var(--amber); }
       <!-- Drive Input -->
       <div style="display:flex; align-items:center; gap:8px; margin:8px 0 6px;">
         <div class="divider-line"></div>
-        <span style="font-size:12px; color:var(--text-dim); white-space:nowrap; font-family:'Share Tech Mono',monospace; letter-spacing:0.15em;">OR DRIVE</span>
+        <span style="font-size:12px; color:var(--text-dim); white-space:nowrap; font-family:'Inter', sans-serif; font-weight:600;">またはDrive</span>
         <div class="divider-line"></div>
       </div>
       <button class="rec-btn whisper" style="width:100%; padding:8px; margin-bottom:6px;" id="driveListBtn" onclick="loadDriveList()">📁 DRIVEフォルダから一覧取得</button>
@@ -1168,7 +1202,7 @@ h1 .accent { color: var(--amber); }
         type="text"
         id="driveSearchBox"
         placeholder="🔍 ファイル名で検索..."
-        style="display:none; width:100%; box-sizing:border-box; margin-bottom:6px; padding:8px 10px; background:var(--panel3); border:1px solid var(--border2); color:var(--text-bright); font-family:'Share Tech Mono',monospace; font-size:13px;"
+        style="display:none; width:100%; box-sizing:border-box; margin-bottom:6px; padding:8px 10px; background:var(--panel3); border:1px solid var(--border2); color:var(--text-bright); font-family:'JetBrains Mono', monospace; font-size:13px;"
         oninput="renderDriveListFiltered(this.value)"
       >
       <div class="recordings-list" id="driveList"></div>
@@ -1185,12 +1219,12 @@ h1 .accent { color: var(--amber); }
       <!-- Parameters -->
       <div class="section-divider">
         <div class="divider-line"></div>
-        <span class="divider-text">PARAMETERS</span>
+        <span class="divider-text">オプション設定</span>
         <div class="divider-line"></div>
       </div>
 
       <div class="param-row">
-        <span class="param-label">LANG SELECT</span>
+        <span class="param-label">言語</span>
         <select class="param-select" id="langSelect">
           <option value="auto">AUTO-DETECT</option>
           <option value="ja" selected>JPN // 日本語</option>
@@ -1204,7 +1238,7 @@ h1 .accent { color: var(--amber); }
       </div>
 
       <div class="param-row">
-        <span class="param-label">OUTPUT MODE</span>
+        <span class="param-label">出力モード</span>
         <select class="param-select" id="outputMode">
           <option value="transcribe">TRANSCRIBE</option>
           <option value="translate">TRANSLATE → EN</option>
@@ -1213,7 +1247,7 @@ h1 .accent { color: var(--amber); }
       </div>
 
       <div class="param-row">
-        <span class="param-label">RESPONSE FMT</span>
+        <span class="param-label">出力形式</span>
         <select class="param-select" id="respFmt">
           <option value="json">JSON</option>
           <option value="text">PLAIN TEXT</option>
@@ -1248,7 +1282,7 @@ h1 .accent { color: var(--amber); }
   <!-- ===== RIGHT TOP: STATUS PANEL ===== -->
   <div class="status-panel panel">
     <div class="panel-header">
-      <div class="panel-label"><span class="num">02 //</span> SYSTEM MONITOR</div>
+      <div class="panel-label"><span class="num">02</span> 処理状況</div>
     </div>
     <div class="panel-body">
 
@@ -1265,19 +1299,19 @@ h1 .accent { color: var(--amber); }
       <div class="meter-grid">
         <div class="meter-box">
           <div class="meter-val" id="mFileSize">—</div>
-          <div class="meter-label">FILE SIZE</div>
+          <div class="meter-label">ファイルサイズ</div>
         </div>
         <div class="meter-box">
           <div class="meter-val" id="mChars">—</div>
-          <div class="meter-label">CHAR COUNT</div>
+          <div class="meter-label">文字数</div>
         </div>
         <div class="meter-box">
           <div class="meter-val" id="mWords">—</div>
-          <div class="meter-label">WORD COUNT</div>
+          <div class="meter-label">単語数</div>
         </div>
         <div class="meter-box">
-          <div class="meter-val" id="mStatus">IDLE</div>
-          <div class="meter-label">PROC STATUS</div>
+          <div class="meter-val" id="mStatus">待機中</div>
+          <div class="meter-label">状態</div>
         </div>
       </div>
 
@@ -1287,10 +1321,10 @@ h1 .accent { color: var(--amber); }
   <!-- ===== RIGHT BOTTOM: OUTPUT PANEL ===== -->
   <div class="output-panel panel">
     <div class="panel-header">
-      <div class="panel-label"><span class="num">03 //</span> OUTPUT TERMINAL</div>
+      <div class="panel-label"><span class="num">03</span> 文字起こし結果</div>
     </div>
     <div class="panel-body">
-      <div class="output-area" id="outputArea">SIGNAL PENDING...</div>
+      <div class="output-area" id="outputArea">文字起こし結果がここに表示されます</div>
       <div class="output-toolbar">
         <button class="tool-btn" onclick="copyResult()">[ COPY ]</button>
         <button class="tool-btn" onclick="downloadResult()">[ DOWNLOAD .TXT ]</button>
@@ -1665,14 +1699,14 @@ async function loadRecordings() {
     });
     crtLog(`RECORDS LOADED: ${arr.length} FILES`, 'bright');
   } catch(e) {
-    list.innerHTML = `<div style="padding:10px;font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--red-bright);">ERR: ${e.message}</div>`;
+    list.innerHTML = `<div style="padding:10px;font-family:'JetBrains Mono', monospace;font-size:12px;color:var(--red-bright);">ERR: ${e.message}</div>`;
     crtLog(`RECORDS ERR: ${e.message}`, 'err');
   }
 }
 
 async function getPlaudTranscript(fileId, fileName) {
   crtLog(`>> FETCHING TRANSCRIPT: ${fileName}`, 'warn');
-  document.getElementById('mStatus').textContent = 'PROC';
+  document.getElementById('mStatus').textContent = '処理中';
   document.getElementById('errorBlock').classList.remove('visible');
   document.getElementById('translationBlock').classList.remove('visible');
   try {
@@ -1699,12 +1733,12 @@ async function getPlaudTranscript(fileId, fileName) {
     const words = text.trim().split(/\s+/).filter(Boolean).length;
     document.getElementById('mChars').textContent = chars;
     document.getElementById('mWords').textContent = words;
-    document.getElementById('mStatus').textContent = 'OK';
+    document.getElementById('mStatus').textContent = '完了';
     crtLog(`TRANSCRIPT OK // CHARS:${chars} WORDS:${words}`, 'ok');
     saveHistory(text, fileName);
     toast(`PLAUD TRANSCRIPT: ${fileName}`);
   } catch(e) {
-    document.getElementById('mStatus').textContent = 'FAIL';
+    document.getElementById('mStatus').textContent = '失敗';
     crtLog(`TRANSCRIPT ERR: ${e.message}`, 'err');
     showError('PLAUD ERR: ' + e.message);
   }
@@ -1759,7 +1793,7 @@ async function playPlaudAudio(fileId, fileName, btn) {
 
 async function loadForWhisper(fileId, fileName) {
   crtLog(`>> FETCHING AUDIO URL: ${fileName}`, 'warn');
-  document.getElementById('mStatus').textContent = 'DL';
+  document.getElementById('mStatus').textContent = 'DL中';
   document.getElementById('errorBlock').classList.remove('visible');
   try {
     const urlData = await plaudFetch(`/file/temp-url/${fileId}?is_opus=false`);
@@ -1776,12 +1810,12 @@ async function loadForWhisper(fileId, fileName) {
     document.getElementById('fName').textContent = currentFile.name;
     document.getElementById('fSize').textContent = fmtSize(currentFile.size);
     document.getElementById('mFileSize').textContent = fmtSize(currentFile.size);
-    document.getElementById('mStatus').textContent = 'READY';
+    document.getElementById('mStatus').textContent = '準備完了';
     crtLog(`AUDIO LOADED: ${fmtSize(currentFile.size)}`, 'ok');
     crtLog(`>> READY — PRESS START FOR WHISPER`, 'bright');
     toast(`音声ロード完了 // START を押してください`);
   } catch(e) {
-    document.getElementById('mStatus').textContent = 'FAIL';
+    document.getElementById('mStatus').textContent = '失敗';
     crtLog(`AUDIO ERR: ${e.message}`, 'err');
     showError('AUDIO ERR: ' + e.message);
   }
@@ -1998,7 +2032,7 @@ async function loadDriveList() {
     saveDriveListCache(files);
     crtLog(`>> DRIVE: ${files.length}件 取得完了`, 'ok');
   } catch (e) {
-    list.innerHTML = `<div style="padding:10px;font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--red-bright);">ERR: ${e.message}</div>`;
+    list.innerHTML = `<div style="padding:10px;font-family:'JetBrains Mono', monospace;font-size:12px;color:var(--red-bright);">ERR: ${e.message}</div>`;
     crtLog(`>> DRIVE ERR: ${e.message}`, 'err');
   } finally {
     btn.disabled = false;
@@ -2553,7 +2587,7 @@ async function execute() {
   btn.disabled = true;
   btn.textContent = '⏳ PROCESSING...';
   document.getElementById('progressTrack').classList.add('visible');
-  document.getElementById('mStatus').textContent = 'PROC';
+  document.getElementById('mStatus').textContent = '処理中';
   document.getElementById('errorBlock').classList.remove('visible');
   document.getElementById('translationBlock').classList.remove('visible');
   document.getElementById('procLed').style.boxShadow = '0 0 8px var(--amber)';
@@ -2657,7 +2691,7 @@ async function execute() {
     const words = text.trim().split(/\s+/).filter(Boolean).length;
     document.getElementById('mChars').textContent = chars;
     document.getElementById('mWords').textContent = words;
-    document.getElementById('mStatus').textContent = 'OK';
+    document.getElementById('mStatus').textContent = '完了';
 
     crtLog(`>> DECODE COMPLETE. CHARS:${chars} WORDS:${words}`, 'ok');
     crtLog('>> SIGNAL WRITTEN TO OUTPUT TERMINAL', 'ok');
@@ -2711,7 +2745,7 @@ async function execute() {
     toast('処理完了 // DECODE SUCCESS');
 
   } catch (err) {
-    document.getElementById('mStatus').textContent = 'FAIL';
+    document.getElementById('mStatus').textContent = '失敗';
     crtLog('>> [CRITICAL] DECODE FAILURE', 'err');
     crtLog(`>> ${err.message}`, 'err');
     showError('ERR: ' + err.message);
@@ -2809,11 +2843,11 @@ function dl(text, name) {
 function clearOutput() {
   lastResult = '';
   lastTranslation = '';
-  document.getElementById('outputArea').textContent = 'SIGNAL PENDING...';
+  document.getElementById('outputArea').textContent = '文字起こし結果がここに表示されます';
   document.getElementById('translationBlock').classList.remove('visible');
   document.getElementById('mChars').textContent = '—';
   document.getElementById('mWords').textContent = '—';
-  document.getElementById('mStatus').textContent = 'IDLE';
+  document.getElementById('mStatus').textContent = '待機中';
   crtLog('>> OUTPUT TERMINAL CLEARED', 'warn');
 }
 
@@ -2836,7 +2870,7 @@ function saveHistoryList(list) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
 }
 function saveHistory(text, source) {
-  if (!text || text === 'SIGNAL PENDING...') return;
+  if (!text || text === '文字起こし結果がここに表示されます') return;
   const list = loadHistory();
   const entry = {
     id: Date.now(),
@@ -2880,7 +2914,7 @@ function restoreFromHistory(i) {
   document.getElementById('outputArea').textContent = entry.text;
   document.getElementById('mChars').textContent = entry.chars;
   document.getElementById('mWords').textContent = entry.words;
-  document.getElementById('mStatus').textContent = 'OK';
+  document.getElementById('mStatus').textContent = '完了';
   crtLog(`>> HISTORY RESTORED: ${entry.source}`, 'ok');
   toast('履歴から復元 // RESTORED');
 }
