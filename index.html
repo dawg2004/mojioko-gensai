@@ -2126,12 +2126,14 @@ async function bgTranscribeDriveFile(fileId, fileName) {
       crtLog(`>> BG JOB PARTIAL: ${data.processedSegments}/${data.totalSegments}件 処理 → ${data.savedFile.name} に保存`, 'warn');
       toast(`途中まで完了(${data.processedSegments}/${data.totalSegments})。もう一度実行すると続きから再開します`);
       if (btn) { btn.disabled = false; btn.textContent = '☁ バックグラウンド実行(再試行)'; }
+      return { done: false };
     } else {
       crtLog(`>> BG JOB DONE: ${data.savedFile.name} をDriveに保存しました`, 'ok');
       toast(`完了: ${data.savedFile.name} をDriveに保存しました`);
       markFileProcessed(fileId, fileName);
       notifyJobDone(fileName, true);
       if (btn) { btn.disabled = false; btn.textContent = '✓ 完了(Driveに保存済み)'; }
+      return { done: true };
     }
   } catch (e) {
     crtLog(`>> BG JOB ERR: ${e.message}`, 'err');
@@ -2166,16 +2168,30 @@ async function runAllDrive() {
   for (let i = 0; i < targets.length; i++) {
     const f = targets[i];
     const safeName = (f.name || '').replace(/['"]/g, '');
-    btn.textContent = `⏳ 処理中 (${i + 1}/${targets.length}) ${safeName.slice(0, 20)}`;
     crtLog(`>> BATCH [${i + 1}/${targets.length}]: ${safeName}`, '');
 
-    try {
-      await bgTranscribeDriveFile(f.id, safeName);
-      ok++;
-    } catch (e) {
-      fail++;
-      crtLog(`>> BATCH [${i + 1}/${targets.length}]: 失敗 — ${safeName}`, 'err');
+    // 接続が不安定だとサーバー側は進んでても表示上だけエラーになることがあるため、
+    // 同じファイルを最大3回までリトライしてから次のファイルに進む
+    const MAX_FILE_ATTEMPTS = 3;
+    let succeeded = false;
+    for (let attempt = 1; attempt <= MAX_FILE_ATTEMPTS; attempt++) {
+      btn.textContent = `⏳ 処理中 (${i + 1}/${targets.length}) 試行${attempt}/${MAX_FILE_ATTEMPTS} ${safeName.slice(0, 16)}`;
+      try {
+        const result = await bgTranscribeDriveFile(f.id, safeName);
+        if (result && result.done) {
+          succeeded = true;
+          break;
+        }
+        crtLog(`>> BATCH [${i + 1}/${targets.length}] 試行${attempt}/${MAX_FILE_ATTEMPTS}: まだ途中 — 続けて再試行します`, 'warn');
+        if (attempt < MAX_FILE_ATTEMPTS) await new Promise((r) => setTimeout(r, 1500));
+      } catch (e) {
+        crtLog(`>> BATCH [${i + 1}/${targets.length}] 試行${attempt}/${MAX_FILE_ATTEMPTS}: 失敗 — ${e.message}`, 'err');
+        if (attempt < MAX_FILE_ATTEMPTS) await new Promise((r) => setTimeout(r, 2000));
+      }
     }
+
+    if (succeeded) ok++;
+    else fail++;
   }
 
   btn.disabled = false;
