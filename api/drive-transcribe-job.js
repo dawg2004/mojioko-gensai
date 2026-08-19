@@ -156,9 +156,37 @@ async function findExistingProgress(drive, folderId, baseName) {
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  // GET: 進行状況の確認のみ(ジョブは開始しない、Drive上の進行中ファイルを覗くだけ)
+  if (req.method === 'GET') {
+    const { fileName, saveFolderId } = req.query;
+    if (!fileName || !saveFolderId) {
+      return res.status(400).json({ error: 'MISSING_FILENAME_OR_SAVEFOLDERID' });
+    }
+    try {
+      const auth = getOAuthClient();
+      const drive = google.drive({ version: 'v3', auth });
+      const baseName = fileName.replace(/\.[^/.]+$/, '');
+      const existing = await findExistingProgress(drive, saveFolderId, baseName);
+      if (!existing) return res.status(200).json({ status: 'not_started' });
+      if (existing.isDone) {
+        return res.status(200).json({ status: 'done', charCount: existing.combinedText.length });
+      }
+      const m = existing.currentName.match(/_進行中_(\d+)of(\d+)\.txt$/);
+      return res.status(200).json({
+        status: 'in_progress',
+        processedSegments: m ? parseInt(m[1], 10) : null,
+        totalSegments: m ? parseInt(m[2], 10) : null,
+        charCount: existing.combinedText.length,
+      });
+    } catch (e) {
+      return res.status(500).json({ error: 'STATUS_CHECK_FAILED', detail: e.message });
+    }
+  }
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
 
   const startedAt = Date.now();

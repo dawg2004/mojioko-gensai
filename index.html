@@ -2041,11 +2041,57 @@ async function loadDriveList() {
 }
 
 // ── バックグラウンド文字起こし(サーバー側で完結、画面を閉じてもOK) ──
+// 通知許可をリクエスト(初回のバックグラウンド実行時に1回だけ聞く)
+let notifyPermissionAsked = false;
+async function ensureNotifyPermission() {
+  if (!('Notification' in window)) return false;
+  if (Notification.permission === 'granted') return true;
+  if (Notification.permission === 'denied') return false;
+  if (notifyPermissionAsked) return false;
+  notifyPermissionAsked = true;
+  try {
+    const perm = await Notification.requestPermission();
+    return perm === 'granted';
+  } catch (e) {
+    return false;
+  }
+}
+
+function notifyJobDone(fileName, ok) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    new Notification(ok ? '文字起こし完了' : '文字起こし失敗', {
+      body: ok ? `${fileName} の処理が完了し、Driveに保存しました` : `${fileName} の処理でエラーが発生しました`,
+      icon: '/icon-192.png',
+    });
+  } catch (e) { /* 通知APIが使えない環境は無視 */ }
+}
+
 async function bgTranscribeDriveFile(fileId, fileName) {
   const btn = document.getElementById(`bgBtn_${fileId}`);
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ サーバー処理中...'; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ サーバー処理中... (0%)'; }
   crtLog(`>> BG JOB START: ${fileName}`, 'warn');
   toast('サーバー側で処理開始。画面を閉じてもOK、終わったらDriveに自動保存されます');
+  ensureNotifyPermission();
+
+  // ポーリングで進捗をDriveから覗いて表示する(処理自体はサーバー側で独立して進む)
+  let pollTimer = null;
+  const startPolling = () => {
+    pollTimer = setInterval(async () => {
+      try {
+        const q = new URLSearchParams({ fileName, saveFolderId: DRIVE_UPLOAD_FOLDER_ID });
+        const r = await fetch(`/api/drive-transcribe-job?${q.toString()}`);
+        if (!r.ok) return;
+        const d = await r.json();
+        if (d.status === 'in_progress' && d.totalSegments) {
+          const pct = Math.round((d.processedSegments / d.totalSegments) * 100);
+          if (btn) btn.textContent = `⏳ 処理中... (${d.processedSegments}/${d.totalSegments} · ${pct}%)`;
+          crtLog(`>> BG JOB PROGRESS: ${d.processedSegments}/${d.totalSegments} (${pct}%)`, '');
+        }
+      } catch (e) { /* ポーリング失敗は無視して次回に賭ける */ }
+    }, 4000);
+  };
+  startPolling();
 
   try {
     const res = await fetch('/api/drive-transcribe-job', {
@@ -2084,6 +2130,7 @@ async function bgTranscribeDriveFile(fileId, fileName) {
       crtLog(`>> BG JOB DONE: ${data.savedFile.name} をDriveに保存しました`, 'ok');
       toast(`完了: ${data.savedFile.name} をDriveに保存しました`);
       markFileProcessed(fileId, fileName);
+      notifyJobDone(fileName, true);
       if (btn) { btn.disabled = false; btn.textContent = '✓ 完了(Driveに保存済み)'; }
     }
   } catch (e) {
@@ -2094,8 +2141,11 @@ async function bgTranscribeDriveFile(fileId, fileName) {
       `Google Driveの保存先フォルダに「_進行中_」付きのファイルができていないか確認してください。` +
       `できていれば、同じボタンをもう一度押すと続きから再開されます。`
     );
+    notifyJobDone(fileName, false);
     if (btn) { btn.disabled = false; btn.textContent = '☁ バックグラウンド実行(続きから再開)'; }
     throw e;
+  } finally {
+    if (pollTimer) clearInterval(pollTimer);
   }
 }
 
