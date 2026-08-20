@@ -124,6 +124,26 @@ h1 .accent {
   gap: 16px;
 }
 
+.reload-btn {
+  background: var(--panel2);
+  border: 1px solid var(--border2);
+  color: var(--text-dim);
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.reload-btn:hover { border-color: var(--amber); color: var(--amber-bright); transform: rotate(90deg); }
+.reload-btn:active { transform: rotate(180deg) scale(0.9); }
+.reload-btn.spinning { animation: reload-spin 0.6s linear infinite; }
+@keyframes reload-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
 .led-row {
   display: flex;
   gap: 8px;
@@ -1212,6 +1232,7 @@ h1 .accent {
     <div class="sys-id">減災協会 内部ツール</div>
   </div>
   <div class="header-right">
+    <button class="reload-btn" id="reloadBtn" onclick="hardReload()" title="最新版に更新">⟳</button>
     <div class="led-row">
       <div class="led green" title="POWER"></div>
       <div class="led amber" id="procLed" title="PROCESSING"></div>
@@ -3174,6 +3195,26 @@ if ('serviceWorker' in navigator) {
       console.warn('SW registration failed:', e);
     });
   });
+}
+
+// 手動リロード: Cache Storage + Service Workerも巻き込んで確実に最新版を取得する。
+// (sw.jsはネットワーク優先だが、念のためキャッシュも明示的に破棄してから再読み込みする)
+async function hardReload() {
+  const btn = document.getElementById('reloadBtn');
+  if (btn) btn.classList.add('spinning');
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.update()));
+    }
+  } catch (e) {
+    console.warn('hardReload cleanup failed:', e);
+  }
+  location.reload(true);
 }
 
 // 起動時、Drive一覧のキャッシュがあれば再取得せずそのまま復元表示する
