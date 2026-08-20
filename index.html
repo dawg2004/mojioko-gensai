@@ -795,6 +795,71 @@ h1 .accent {
 .error-block.visible { display: block; }
 
 /* Toast */
+/* Drive text file picker modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.modal-overlay.visible { display: flex; }
+.modal-box {
+  background: var(--panel);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 520px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-bright);
+}
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+.modal-close:hover { color: var(--red-bright); background: rgba(239,68,68,0.1); }
+.modal-body {
+  padding: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.modal-file-item {
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+}
+.modal-file-item:hover { border-color: var(--amber); background: rgba(139,92,246,0.08); }
+.modal-file-name { font-size: 13px; font-weight: 600; color: var(--text-bright); margin-bottom: 3px; }
+.modal-file-meta { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--text-dim); }
+
 .toast {
   position: fixed;
   bottom: 24px;
@@ -1370,6 +1435,19 @@ h1 .accent {
         </div>
       </div>
 
+    </div>
+  </div>
+</div>
+
+<!-- Drive内テキストファイル選択モーダル -->
+<div class="modal-overlay" id="driveTextModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span>Driveの文字起こし結果から選択</span>
+      <button class="modal-close" onclick="closeDriveTextModal()">✕</button>
+    </div>
+    <div class="modal-body" id="driveTextModalBody">
+      <div class="history-empty">読み込み中...</div>
     </div>
   </div>
 </div>
@@ -2209,7 +2287,14 @@ async function runAllDrive() {
 
 async function summarizeCurrent() {
   const text = lastResult;
-  if (!text) { toast('要約対象のテキストがありません'); return; }
+  if (!text) {
+    openDriveTextModal();
+    return;
+  }
+  await runSummarize(text);
+}
+
+async function runSummarize(text) {
   const summaryBlock = document.getElementById('summaryBlock');
   const out = document.getElementById('summaryOutput');
   summaryBlock.classList.add('visible');
@@ -2230,6 +2315,60 @@ async function summarizeCurrent() {
   } catch (e) {
     out.textContent = '[要約エラー] ' + e.message;
     crtLog(`>> SUMMARY ERR: ${e.message}`, 'err');
+  }
+}
+
+// ── Driveのテキストファイル選択モーダル ──────────────
+async function openDriveTextModal() {
+  const modal = document.getElementById('driveTextModal');
+  const body = document.getElementById('driveTextModalBody');
+  modal.classList.add('visible');
+  body.innerHTML = '<div class="history-empty">読み込み中...</div>';
+
+  try {
+    const q = new URLSearchParams({ folderId: DRIVE_UPLOAD_FOLDER_ID, type: 'text' });
+    const res = await fetch(`/api/drive-list?${q.toString()}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || data.error || `HTTP ${res.status}`);
+
+    const files = (data.files || []).filter((f) => !f.name.includes('_進行中_'));
+    if (!files.length) {
+      body.innerHTML = '<div class="history-empty">Driveに文字起こし結果(.txt)が見つかりません</div>';
+      return;
+    }
+
+    body.innerHTML = files.map((f) => {
+      const d = f.modifiedTime ? new Date(f.modifiedTime).toLocaleString('ja-JP', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+      const size = f.size ? fmtSize(Number(f.size)) : '';
+      return `<button class="modal-file-item" onclick="pickDriveTextFile('${f.id}', '${f.name.replace(/'/g, "\\'")}')">
+        <div class="modal-file-name">${f.name}</div>
+        <div class="modal-file-meta">${d}${size ? ' · ' + size : ''}</div>
+      </button>`;
+    }).join('');
+  } catch (e) {
+    body.innerHTML = `<div class="history-empty" style="color:var(--red-bright);">読み込み失敗: ${e.message}</div>`;
+  }
+}
+
+function closeDriveTextModal() {
+  document.getElementById('driveTextModal').classList.remove('visible');
+}
+
+async function pickDriveTextFile(fileId, fileName) {
+  closeDriveTextModal();
+  crtLog(`>> DRIVE TEXT: ${fileName} を取得中...`, 'warn');
+  toast('ファイルを取得中...');
+  try {
+    const res = await fetch(`/api/drive-audio?fileId=${encodeURIComponent(fileId)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    lastResult = text;
+    document.getElementById('outputArea').textContent = text;
+    crtLog(`>> DRIVE TEXT: 取得完了 (${text.length}文字) — 要約開始`, 'ok');
+    await runSummarize(text);
+  } catch (e) {
+    crtLog(`>> DRIVE TEXT ERR: ${e.message}`, 'err');
+    showError(`ERR_DRIVE_TEXT: ${e.message}`);
   }
 }
 
