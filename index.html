@@ -2279,12 +2279,23 @@ async function bgTranscribeDriveFile(fileId, fileName) {
     }
   } catch (e) {
     crtLog(`>> BG JOB ERR: ${e.message}`, 'err');
-    showError(
-      `ERR_BG_JOB: ${e.message}\n` +
-      `※ブラウザ側の表示エラーで、サーバー側の処理は継続・一部完了している場合があります。` +
-      `Google Driveの保存先フォルダに「_進行中_」付きのファイルができていないか確認してください。` +
-      `できていれば、同じボタンをもう一度押すと続きから再開されます。`
-    );
+    const isDailyLimit = /seconds of audio per day|ASPD/i.test(e.message);
+    if (isDailyLimit) {
+      const waitMatch = e.message.match(/try again in ([\dhms.]+)/i);
+      showError(
+        `⚠️ 音声処理の1日の上限に達しました\n` +
+        `Groq無料枠は1日に処理できる音声の長さに上限があり、今日の分を使い切りました。` +
+        (waitMatch ? `目安として あと${waitMatch[1]} で回復するとGroqから案内されています。` : '') +
+        `\nこれまで処理できた分はGoogle Driveに保存済みです。時間を置いてから続きを実行してください。`
+      );
+    } else {
+      showError(
+        `ERR_BG_JOB: ${e.message}\n` +
+        `※ブラウザ側の表示エラーで、サーバー側の処理は継続・一部完了している場合があります。` +
+        `Google Driveの保存先フォルダに「_進行中_」付きのファイルができていないか確認してください。` +
+        `できていれば、同じボタンをもう一度押すと続きから再開されます。`
+      );
+    }
     notifyJobDone(fileName, false);
     if (btn) { btn.disabled = false; btn.textContent = '☁ バックグラウンド実行(続きから再開)'; }
     throw e;
