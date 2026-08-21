@@ -2086,12 +2086,12 @@ function renderDriveListFiltered(query) {
     const size = f.size ? fmtSize(Number(f.size)) : '—';
     const processed = getProcessedMap()[f.id];
     const badge = processed
-      ? `<span style="color:var(--green-bright, #3fb950); font-size:11px; margin-left:6px;">✓済 (${formatProcessedDate(processed.at)})</span>`
+      ? `<span style="color:var(--green-bright, #3fb950); font-size:11px; margin-right:6px; white-space:nowrap;">✓済 (${formatProcessedDate(processed.at)})</span>`
       : '';
     const div = document.createElement('div');
     div.className = 'recording-item';
     div.innerHTML = `
-      <div class="rec-name" title="${safeName}">${safeName}${badge}</div>
+      <div class="rec-name" title="${safeName}">${badge}${safeName}</div>
       <div class="rec-date">${date} | ${size}</div>
       <div class="rec-actions">
         <button class="rec-btn whisper" id="bgBtn_${f.id}" onclick="bgTranscribeDriveFile('${f.id}','${safeName}')" title="サーバー側で処理。実行後は画面を閉じてOK、終わったらDriveに自動保存されます">${processed ? '↻ 再実行' : '☁ バックグラウンド実行'}</button>
