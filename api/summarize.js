@@ -5,7 +5,7 @@
 // テキストをチャンクに分割 → 各チャンクを個別要約 → 最後にまとめて統合要約する
 // 2段階方式にする。
 
-const TPM_SAFE_CHARS = 6000; // 日本語は1文字≒1トークンに近いため、TPM上限(8000)に対して大きめのマージンを取る
+const TPM_SAFE_CHARS = 3000; // TPM上限(8000)に対してさらに余裕を持たせる(直前の使用分の消化を待つ時間を稼ぐため)
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -89,7 +89,7 @@ module.exports = async function handler(req, res) {
   // TPM(1分あたりトークン数)のレート制限に引っかかった場合、Groqが返してくる
   // 「Please try again in 27.075s」のような指示に従って待ってからリトライする。
   // Vercelの60秒実行上限もあるため、待機時間の合計に上限を設ける。
-  const MAX_WAIT_BUDGET_MS = 40000;
+  const MAX_WAIT_BUDGET_MS = 48000;
   async function callGroq(systemPrompt, userContent, maxTokens) {
     let waited = 0;
     for (let attempt = 1; attempt <= 3; attempt++) {
@@ -128,7 +128,7 @@ module.exports = async function handler(req, res) {
         const partial = await callGroq(partialSystemPrompt, chunks[i], 1024);
         partialSummaries.push(partial);
         // TPM(1分あたりのトークン数)上限に引っかからないよう、チャンク間に間隔を空ける
-        if (i < chunks.length - 1) await new Promise((r) => setTimeout(r, 5000));
+        if (i < chunks.length - 1) await new Promise((r) => setTimeout(r, 7000));
       }
       const combined = partialSummaries
         .map((p, idx) => `【区間${idx + 1}】\n${p}`)
