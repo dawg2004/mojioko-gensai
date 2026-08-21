@@ -1351,13 +1351,22 @@ h1 .accent {
       <!-- Groq Free Plan usage meter -->
       <div class="usage-meter" id="usageMeter">
         <div class="usage-meter-header">
-          <span class="usage-label">GROQ FREE PLAN</span>
+          <span class="usage-label">GROQ FREE PLAN (1時間)</span>
           <span class="usage-numbers" id="usageNumbers">—</span>
         </div>
         <div class="usage-bar-track">
           <div class="usage-bar-fill" id="usageBarFill"></div>
         </div>
         <div class="usage-note">上限 120分/時間（毎時リセット）</div>
+
+        <div class="usage-meter-header" style="margin-top:10px;">
+          <span class="usage-label">GROQ FREE PLAN (1日)</span>
+          <span class="usage-numbers" id="usageNumbersDay">—</span>
+        </div>
+        <div class="usage-bar-track">
+          <div class="usage-bar-fill" id="usageBarFillDay"></div>
+        </div>
+        <div class="usage-note" id="usageNoteDay">上限 480分/日(8時間)</div>
       </div>
 
       <div class="error-block" id="errorBlock"></div>
@@ -2261,6 +2270,9 @@ async function bgTranscribeDriveFile(fileId, fileName) {
     }
     if (!res.ok) throw new Error(data.detail || data.error || `HTTP ${res.status}`);
 
+    // このバックグラウンドジョブ呼び出しで実際に処理した音声秒数をメーターに加算
+    if (data.audioSecondsProcessedThisRun) addUsedSeconds(data.audioSecondsProcessedThisRun);
+
     if (data.status === 'partial') {
       crtLog(`>> BG JOB PARTIAL: ${data.processedSegments}/${data.totalSegments}件 処理 → ${data.savedFile.name} に保存`, 'warn');
       toast(`途中まで完了(${data.processedSegments}/${data.totalSegments})。もう一度実行すると続きから再開します`);
@@ -2500,27 +2512,55 @@ dz.addEventListener('drop', e => {
 });
 
 // ── Groq Free Plan 使用量トラッカー ──────────────────────
-const GROQ_DAILY_LIMIT = 7200; // 秒（120分）
+const GROQ_DAILY_LIMIT = 7200; // 秒（120分/時間）
+const GROQ_DAY_LIMIT = 28800;  // 秒（480分=8時間/日）
 
 function _usageKey() {
   // UTC時間キー（Groqは毎時リセット）
   const now = new Date();
   return 'groq_used_' + now.toISOString().slice(0, 13); // YYYY-MM-DDTHH
 }
+function _usageKeyDay() {
+  // UTC日付キー（Groqの1日あたり上限はUTC基準と想定）
+  const now = new Date();
+  return 'groq_used_day_' + now.toISOString().slice(0, 10); // YYYY-MM-DD
+}
 function getUsedSeconds() {
   return parseFloat(localStorage.getItem(_usageKey()) || '0');
+}
+function getUsedSecondsDay() {
+  return parseFloat(localStorage.getItem(_usageKeyDay()) || '0');
 }
 function addUsedSeconds(secs) {
   if (!secs || secs <= 0) return;
   const key = _usageKey();
   const current = parseFloat(localStorage.getItem(key) || '0');
   localStorage.setItem(key, String(current + secs));
+
+  const dayKey = _usageKeyDay();
+  const currentDay = parseFloat(localStorage.getItem(dayKey) || '0');
+  localStorage.setItem(dayKey, String(currentDay + secs));
+
   updateUsageMeter();
+}
+// 次のUTC 0時(=このアプリの想定リセット時刻)を、利用者のローカル時刻表記で返す
+function nextUtcResetLocalString() {
+  const now = new Date();
+  const nextUtcMidnight = new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0
+  ));
+  return nextUtcMidnight.toLocaleString('ja-JP', {
+    month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
 }
 function updateUsageMeter() {
   const used = getUsedSeconds();
   const pct = Math.min(used / GROQ_DAILY_LIMIT * 100, 100);
   const remaining = Math.max(GROQ_DAILY_LIMIT - used, 0);
+
+  const usedDay = getUsedSecondsDay();
+  const pctDay = Math.min(usedDay / GROQ_DAY_LIMIT * 100, 100);
+  const remainingDay = Math.max(GROQ_DAY_LIMIT - usedDay, 0);
 
   const fmtMin = s => {
     const m = Math.floor(s / 60), sec = Math.floor(s % 60);
@@ -2536,6 +2576,21 @@ function updateUsageMeter() {
   numEl.className   = 'usage-numbers' + (over ? ' over' : warn ? ' warn' : '');
   barEl.className   = 'usage-bar-fill' + (over ? ' over' : warn ? ' warn' : '');
   barEl.style.width = pct + '%';
+
+  const numDayEl = document.getElementById('usageNumbersDay');
+  const barDayEl = document.getElementById('usageBarFillDay');
+  const noteDayEl = document.getElementById('usageNoteDay');
+  if (numDayEl && barDayEl) {
+    numDayEl.textContent = `使用 ${fmtMin(usedDay)} / 残り ${fmtMin(remainingDay)}`;
+    const warnDay = pctDay >= 70;
+    const overDay = pctDay >= 95;
+    numDayEl.className = 'usage-numbers' + (overDay ? ' over' : warnDay ? ' warn' : '');
+    barDayEl.className = 'usage-bar-fill' + (overDay ? ' over' : warnDay ? ' warn' : '');
+    barDayEl.style.width = pctDay + '%';
+  }
+  if (noteDayEl) {
+    noteDayEl.textContent = `上限 480分/日(8時間) — リセット目安: ${nextUtcResetLocalString()}`;
+  }
 }
 
 // ファイルから音声尺（秒）を取得

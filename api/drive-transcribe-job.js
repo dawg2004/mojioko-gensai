@@ -297,6 +297,7 @@ module.exports = async function handler(req, res) {
       combinedText = `【ファイル】${fileName}${dateStr ? `\n【日時】${dateStr}` : ''}\n${'─'.repeat(40)}\n`;
     }
     let processedCount = existing ? existing.resumeIndex : 0;
+    const startIndexThisRun = processedCount;
     let ranOutOfTime = false;
 
     for (let i = processedCount; i < segments.length; i++) {
@@ -328,6 +329,7 @@ module.exports = async function handler(req, res) {
       status: ranOutOfTime ? 'partial' : 'done',
       processedSegments: processedCount,
       totalSegments: segments.length,
+      audioSecondsProcessedThisRun: (processedCount - startIndexThisRun) * SEGMENT_SECONDS,
       savedFile: { id: driveState.driveFileId, name: driveState.currentName, webViewLink: driveState.webViewLink },
       charCount: combinedText.length,
     });
