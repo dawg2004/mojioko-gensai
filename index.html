@@ -2557,6 +2557,14 @@ function clearFile() {
 }
 
 
+// ファイル名から日付らしき部分を抽出する(Plaudの "YYYY-MM-DD HH_MM_SS.ogg" 形式を想定)
+function extractDateFromFileNameClient(fileName) {
+  const m = (fileName || '').match(/(\d{4}-\d{2}-\d{2})[ _](\d{2})[_:](\d{2})[_:](\d{2})/);
+  if (m) return `${m[1]} ${m[2]}:${m[3]}:${m[4]}`;
+  const dateOnly = (fileName || '').match(/\d{4}-\d{2}-\d{2}/);
+  return dateOnly ? dateOnly[0] : null;
+}
+
 function fmtSize(b) {
   if (b < 1024) return b + 'B';
   if (b < 1048576) return (b/1024).toFixed(1) + 'KB';
@@ -2961,6 +2969,14 @@ async function execute() {
       text = j.text || JSON.stringify(j, null, 2);
     } else {
       text = isLargeFile ? (chunkedResult.text || '') : await res.text();
+    }
+
+    // ファイル名(または現在の音声名)から日付を抽出して冒頭にヘッダーを付ける
+    const srcName = (currentFile && currentFile.name) || null;
+    if (srcName) {
+      const dateStr = extractDateFromFileNameClient(srcName);
+      const header = `【ファイル】${srcName}${dateStr ? `\n【日時】${dateStr}` : ''}\n${'─'.repeat(40)}\n\n`;
+      text = header + text;
     }
 
     lastResult = text;

@@ -88,6 +88,14 @@ function toHMS(s) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
 }
 
+// ファイル名から日付らしき部分を抽出する(Plaudの "YYYY-MM-DD HH_MM_SS.ogg" 形式を想定)
+function extractDateFromFileName(fileName) {
+  const m = (fileName || '').match(/(\d{4}-\d{2}-\d{2})[ _](\d{2})[_:](\d{2})[_:](\d{2})/);
+  if (m) return `${m[1]} ${m[2]}:${m[3]}:${m[4]}`;
+  const dateOnly = (fileName || '').match(/\d{4}-\d{2}-\d{2}/);
+  return dateOnly ? dateOnly[0] : null;
+}
+
 async function transcribeSegmentWithRetry(apiKey, filePath, lang, withTimestamp, timeOffsetSec) {
   for (let attempt = 1; attempt <= GROQ_MAX_RETRIES; attempt++) {
     try {
@@ -281,7 +289,13 @@ module.exports = async function handler(req, res) {
 
     // 3. 各セグメントを順番に文字起こし → 1件終わるたびにDriveへ都度保存
     //    (前回の続きがあれば resumeIndex から再開し、再処理を避ける)
-    let combinedText = existing ? existing.combinedText : '';
+    let combinedText;
+    if (existing) {
+      combinedText = existing.combinedText;
+    } else {
+      const dateStr = extractDateFromFileName(fileName);
+      combinedText = `【ファイル】${fileName}${dateStr ? `\n【日時】${dateStr}` : ''}\n${'─'.repeat(40)}\n`;
+    }
     let processedCount = existing ? existing.resumeIndex : 0;
     let ranOutOfTime = false;
 
