@@ -2232,6 +2232,9 @@ async function bgTranscribeDriveFile(fileId, fileName) {
       markFileProcessed(fileId, fileName);
       notifyJobDone(fileName, true);
       if (btn) { btn.disabled = false; btn.textContent = '✓ 完了(Driveに保存済み)'; }
+      // 済バッジをその場で反映(一覧の手動更新なしで即座に見えるように)
+      const searchBox = document.getElementById('driveSearchBox');
+      renderDriveListFiltered(searchBox ? searchBox.value : '');
       return { done: true };
     }
   } catch (e) {
