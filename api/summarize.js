@@ -1,4 +1,4 @@
-// 文字起こしテキストの要約プロキシ: Groq LLM (llama-3.3-70b-versatile) を使用
+// 文字起こしテキストの要約プロキシ: Groq LLM (openai/gpt-oss-120b) を使用
 // 減災教育講演向けの要約フォーマットで出力する
 //
 // 長文対策: TPM(1分あたりトークン数)上限に引っかかる長さの場合、
@@ -54,7 +54,7 @@ module.exports = async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userContent },
