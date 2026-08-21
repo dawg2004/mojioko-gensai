@@ -5,7 +5,7 @@
 // テキストをチャンクに分割 → 各チャンクを個別要約 → 最後にまとめて統合要約する
 // 2段階方式にする。
 
-const TPM_SAFE_CHARS = 30000; // 1リクエストの本文をこの文字数以下に抑える(日本語想定の安全マージン)
+const TPM_SAFE_CHARS = 12000; // openai/gpt-oss-120bのTPM上限(8000)に合わせて安全マージンを取った文字数
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -81,10 +81,15 @@ module.exports = async function handler(req, res) {
     } else {
       // 長い場合: チャンクに分割 → 各チャンクを個別要約 → 統合要約
       const partialSummaries = [];
+      const chunks = [];
       for (let i = 0; i < text.length; i += TPM_SAFE_CHARS) {
-        const chunk = text.slice(i, i + TPM_SAFE_CHARS);
-        const partial = await callGroq(partialSystemPrompt, chunk, 1024);
+        chunks.push(text.slice(i, i + TPM_SAFE_CHARS));
+      }
+      for (let i = 0; i < chunks.length; i++) {
+        const partial = await callGroq(partialSystemPrompt, chunks[i], 1024);
         partialSummaries.push(partial);
+        // TPM(1分あたりのトークン数)上限に引っかからないよう、チャンク間に間隔を空ける
+        if (i < chunks.length - 1) await new Promise((r) => setTimeout(r, 5000));
       }
       const combined = partialSummaries
         .map((p, idx) => `【区間${idx + 1}】\n${p}`)
