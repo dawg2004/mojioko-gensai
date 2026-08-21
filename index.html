@@ -1995,12 +1995,47 @@ function renderProcessedFiles() {
   el.innerHTML = entries.map(([fileId, info]) => {
     const d = new Date(info.at);
     const dateStr = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-    return `<div class="history-item">
+    return `<div class="history-item" onclick="loadProcessedFileText('${fileId}', '${info.name.replace(/'/g, "\\'")}')" style="cursor:pointer;">
       <div class="history-item-meta">${dateStr}<br>済</div>
       <div class="history-item-preview">${info.name}</div>
-      <button class="history-item-del" onclick="deleteProcessedFile('${fileId}')" title="記録削除">✕</button>
+      <button class="history-item-del" onclick="event.stopPropagation(); deleteProcessedFile('${fileId}')" title="記録削除">✕</button>
     </div>`;
   }).join('');
+}
+
+// 処理済み記録(ファイル名+日時のみ)から、Drive上の実際の文字起こし結果(.txt)を
+// 探して取得し、文字起こし結果欄に表示する
+async function loadProcessedFileText(fileId, fileName) {
+  crtLog(`>> HISTORY: ${fileName} の文字起こし結果を検索中...`, 'warn');
+  toast('Driveから取得中...');
+  try {
+    const baseName = fileName.replace(/\.[^/.]+$/, '');
+    const q = new URLSearchParams({ folderId: DRIVE_UPLOAD_FOLDER_ID, type: 'text' });
+    const res = await fetch(`/api/drive-list?${q.toString()}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || data.error || `HTTP ${res.status}`);
+
+    const match = (data.files || []).find((f) =>
+      f.name === `${baseName}.txt` || (f.name.startsWith(baseName) && !f.name.includes('_進行中_'))
+    );
+    if (!match) {
+      toast('Driveに文字起こし結果が見つかりませんでした');
+      crtLog(`>> HISTORY ERR: ${baseName}.txt が見つかりません`, 'err');
+      return;
+    }
+
+    const fileRes = await fetch(`/api/drive-audio?fileId=${encodeURIComponent(match.id)}`);
+    if (!fileRes.ok) throw new Error(`HTTP ${fileRes.status}`);
+    const text = await fileRes.text();
+
+    lastResult = text;
+    document.getElementById('outputArea').textContent = text;
+    crtLog(`>> HISTORY: ${match.name} を表示しました (${text.length}文字)`, 'ok');
+    toast('文字起こし結果を表示しました');
+  } catch (e) {
+    crtLog(`>> HISTORY ERR: ${e.message}`, 'err');
+    showError(`ERR_HISTORY: ${e.message}`);
+  }
 }
 
 function deleteProcessedFile(fileId) {
