@@ -2201,6 +2201,7 @@ async function bgTranscribeDriveFile(fileId, fileName) {
         fileName,
         saveFolderId: DRIVE_UPLOAD_FOLDER_ID,
         lang: document.getElementById('langSelect') ? document.getElementById('langSelect').value : 'ja',
+        format: document.getElementById('respFmt') ? document.getElementById('respFmt').value : 'text',
       }),
     });
 

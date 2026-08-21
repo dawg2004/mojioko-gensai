@@ -83,14 +83,19 @@ function segmentAudio(inputPath, outDir, segExt) {
   });
 }
 
-async function transcribeSegmentWithRetry(apiKey, filePath, lang) {
+function toHMS(s) {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
+
+async function transcribeSegmentWithRetry(apiKey, filePath, lang, withTimestamp, timeOffsetSec) {
   for (let attempt = 1; attempt <= GROQ_MAX_RETRIES; attempt++) {
     try {
       const form = new FormData();
       const buf = fs.readFileSync(filePath);
       form.append('file', new Blob([buf]), path.basename(filePath));
       form.append('model', 'whisper-large-v3-turbo');
-      form.append('response_format', 'text');
+      form.append('response_format', withTimestamp ? 'verbose_json' : 'text');
       if (lang && lang !== 'auto') form.append('language', lang);
 
       const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
@@ -103,7 +108,13 @@ async function transcribeSegmentWithRetry(apiKey, filePath, lang) {
         const raw = await res.text();
         throw new Error(`HTTP ${res.status}: ${raw.slice(0, 300)}`);
       }
-      return await res.text();
+
+      if (!withTimestamp) return await res.text();
+
+      const json = await res.json();
+      const segs = json.segments || [];
+      if (!segs.length) return json.text || '';
+      return segs.map((s) => `[${toHMS(s.start + timeOffsetSec)}]  ${s.text.trim()}`).join('\n');
     } catch (e) {
       if (attempt === GROQ_MAX_RETRIES) throw e;
       await sleep(4000 * attempt);
@@ -214,7 +225,8 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'INVALID_JSON_BODY' });
   }
 
-  const { fileId, fileName, saveFolderId, lang } = body;
+  const { fileId, fileName, saveFolderId, lang, format } = body;
+  const withTimestamp = format === 'timestamp';
   if (!fileId || !saveFolderId) {
     return res.status(400).json({ error: 'MISSING_FILEID_OR_SAVEFOLDERID' });
   }
@@ -269,7 +281,8 @@ module.exports = async function handler(req, res) {
         break;
       }
       const segPath = path.join(workDir, segments[i]);
-      const text = await transcribeSegmentWithRetry(groqKey, segPath, lang);
+      const timeOffsetSec = i * SEGMENT_SECONDS;
+      const text = await transcribeSegmentWithRetry(groqKey, segPath, lang, withTimestamp, timeOffsetSec);
       combinedText += (combinedText ? '\n' : '') + text.trim();
       processedCount++;
       fs.unlinkSync(segPath); // 使い終わったら即削除してディスク節約
