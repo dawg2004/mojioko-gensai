@@ -2202,6 +2202,7 @@ async function bgTranscribeDriveFile(fileId, fileName) {
         saveFolderId: DRIVE_UPLOAD_FOLDER_ID,
         lang: document.getElementById('langSelect') ? document.getElementById('langSelect').value : 'ja',
         format: document.getElementById('respFmt') ? document.getElementById('respFmt').value : 'text',
+        forceRedo: isFileProcessed(fileId), // 済みファイルの再実行は新フォーマットで完全に作り直す
       }),
     });
 

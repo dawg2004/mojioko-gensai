@@ -227,6 +227,7 @@ module.exports = async function handler(req, res) {
 
   const { fileId, fileName, saveFolderId, lang, format } = body;
   const withTimestamp = format === 'timestamp';
+  const forceRedo = !!body.forceRedo; // 既に完了済みでも、フォーマット変更などでゼロから作り直したい場合に指定
   if (!fileId || !saveFolderId) {
     return res.status(400).json({ error: 'MISSING_FILEID_OR_SAVEFOLDERID' });
   }
@@ -242,7 +243,8 @@ module.exports = async function handler(req, res) {
     const drive = google.drive({ version: 'v3', auth });
 
     // 0. 既に進行中/完了済みの結果ファイルがないか確認(あれば続きから再開)
-    const existing = await findExistingProgress(drive, saveFolderId, baseName);
+    //    forceRedo指定時は出力フォーマット変更などのため完全にゼロから作り直す
+    const existing = forceRedo ? null : await findExistingProgress(drive, saveFolderId, baseName);
     if (existing && existing.isDone) {
       return res.status(200).json({
         status: 'done',
@@ -254,6 +256,14 @@ module.exports = async function handler(req, res) {
     if (existing) {
       driveState.driveFileId = existing.driveFileId;
       driveState.currentName = existing.currentName;
+    } else if (forceRedo) {
+      // forceRedo時、既存の進行中/完了ファイル(旧フォーマット)があれば
+      // 上書き対象として掴んでおく(無ければ新規作成になる)
+      const oldFile = await findExistingProgress(drive, saveFolderId, baseName);
+      if (oldFile) {
+        driveState.driveFileId = oldFile.driveFileId;
+        driveState.currentName = oldFile.currentName;
+      }
     }
 
     // 1. Driveからダウンロード
