@@ -2330,7 +2330,20 @@ async function runSummarize(text) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }),
     });
-    const data = await res.json();
+    const rawBody = await res.text();
+    let data;
+    try {
+      data = JSON.parse(rawBody);
+    } catch (parseErr) {
+      if (res.status === 504 || !res.ok) {
+        throw new Error(
+          `サーバー側でタイムアウトした可能性があります(HTTP ${res.status})。` +
+          `文章が長い/TPM制限の待機が重なると60秒の処理上限を超えることがあります。` +
+          `時間を置いてもう一度試してみてください。`
+        );
+      }
+      throw new Error(`予期しないレスポンス形式です: ${rawBody.slice(0, 200)}`);
+    }
     if (!res.ok || !data.summary) throw new Error(data.error || 'SUMMARIZE_FAILED');
     lastSummary = data.summary;
     out.textContent = data.summary;

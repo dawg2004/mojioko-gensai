@@ -8,6 +8,12 @@
 const TPM_SAFE_CHARS = 3000; // TPM上限(8000)に対してさらに余裕を持たせる(直前の使用分の消化を待つ時間を稼ぐため)
 
 module.exports = async function handler(req, res) {
+  const startedAt = Date.now();
+  // Vercelの60秒実行上限より手前で自分から諦め、確実にJSONでエラー応答する
+  // (強制終了されるとHTMLのタイムアウトページが返り、フロント側でJSON解析エラーになるため)
+  const HARD_TIME_BUDGET_MS = 52000;
+  function timeLeft() { return HARD_TIME_BUDGET_MS - (Date.now() - startedAt); }
+
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -102,8 +108,8 @@ module.exports = async function handler(req, res) {
 
         const m = e.message.match(/try again in ([\d.]+)s/i);
         let waitMs = m ? Math.ceil(parseFloat(m[1]) * 1000) + 500 : 5000;
-        if (waited + waitMs > MAX_WAIT_BUDGET_MS) {
-          throw new Error(`${e.message} (待機予算を超えるため中断しました)`);
+        if (waited + waitMs > MAX_WAIT_BUDGET_MS || waitMs > timeLeft() - 5000) {
+          throw new Error(`${e.message} (待機予算を超えるため中断しました。時間を置いて再試行してください)`);
         }
         waited += waitMs;
         await sleep(waitMs);
@@ -125,6 +131,12 @@ module.exports = async function handler(req, res) {
         chunks.push(text.slice(i, i + TPM_SAFE_CHARS));
       }
       for (let i = 0; i < chunks.length; i++) {
+        if (timeLeft() < 8000) {
+          throw new Error(
+            `処理時間が上限に近づいたため中断しました(${i}/${chunks.length}区間まで処理)。` +
+            `時間を置いてもう一度試してください。`
+          );
+        }
         const partial = await callGroq(partialSystemPrompt, chunks[i], 1024);
         partialSummaries.push(partial);
         // TPM(1分あたりのトークン数)上限に引っかからないよう、チャンク間に間隔を空ける
