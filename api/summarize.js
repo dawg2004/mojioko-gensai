@@ -46,7 +46,9 @@ module.exports = async function handler(req, res) {
 この部分に含まれる主要な発言・トピックを日本語で簡潔に箇条書きにしてください。
 前置きや締めの挨拶は不要です。この部分の内容だけを抽出してください。`;
 
-  async function callGroq(systemPrompt, userContent, maxTokens) {
+  function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+  async function callGroqOnce(systemPrompt, userContent, maxTokens) {
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -70,6 +72,30 @@ module.exports = async function handler(req, res) {
       throw err;
     }
     return data.choices?.[0]?.message?.content?.trim() || '';
+  }
+
+  // TPM(1分あたりトークン数)のレート制限に引っかかった場合、Groqが返してくる
+  // 「Please try again in 27.075s」のような指示に従って待ってからリトライする。
+  // Vercelの60秒実行上限もあるため、待機時間の合計に上限を設ける。
+  const MAX_WAIT_BUDGET_MS = 40000;
+  async function callGroq(systemPrompt, userContent, maxTokens) {
+    let waited = 0;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        return await callGroqOnce(systemPrompt, userContent, maxTokens);
+      } catch (e) {
+        const isRateLimit = e.status === 429 || /rate limit/i.test(e.message);
+        if (!isRateLimit || attempt === 3) throw e;
+
+        const m = e.message.match(/try again in ([\d.]+)s/i);
+        let waitMs = m ? Math.ceil(parseFloat(m[1]) * 1000) + 500 : 5000;
+        if (waited + waitMs > MAX_WAIT_BUDGET_MS) {
+          throw new Error(`${e.message} (待機予算を超えるため中断しました)`);
+        }
+        waited += waitMs;
+        await sleep(waitMs);
+      }
+    }
   }
 
   try {
