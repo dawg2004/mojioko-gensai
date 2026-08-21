@@ -1283,7 +1283,7 @@ h1 .accent {
         <div class="divider-line"></div>
       </div>
       <button class="rec-btn whisper" style="width:100%; padding:8px; margin-bottom:6px;" id="driveListBtn" onclick="loadDriveList()">📁 DRIVEフォルダから一覧取得</button>
-      <button class="rec-btn whisper" style="width:100%; padding:8px; margin-bottom:6px;" id="driveRunAllBtn" onclick="runAllDrive()" disabled>▶▶ 全部まとめて実行(最大10件・順番に処理)</button>
+      <button class="rec-btn whisper" style="width:100%; padding:8px; margin-bottom:6px;" id="driveRunAllBtn" onclick="runAllDrive()" disabled>▶▶ 未文字起こし先頭10件・順番に処理</button>
       <input
         type="text"
         id="driveSearchBox"
@@ -2084,9 +2084,12 @@ function renderDriveList(files) {
   driveFilesCache = files;
   const runAllBtn = document.getElementById('driveRunAllBtn');
   if (runAllBtn) {
-    runAllBtn.disabled = !files.length;
-    const n = Math.min(files.length, 10);
-    runAllBtn.textContent = `▶▶ 全部まとめて実行(先頭${n}件・順番に処理)`;
+    const unprocessedCount = files.filter((f) => !isFileProcessed(f.id)).length;
+    runAllBtn.disabled = unprocessedCount === 0;
+    const n = Math.min(unprocessedCount, 10);
+    runAllBtn.textContent = unprocessedCount
+      ? `▶▶ 未文字起こし先頭${n}件・順番に処理`
+      : `▶▶ 未文字起こしファイルなし`;
   }
   const searchBox = document.getElementById('driveSearchBox');
   if (searchBox) searchBox.style.display = files.length ? 'block' : 'none';
@@ -2296,13 +2299,16 @@ async function runAllDrive() {
 
   const btn = document.getElementById('driveRunAllBtn');
   const listBtn = document.getElementById('driveListBtn');
-  const targets = driveFilesCache.slice(0, 10);
+  const unprocessed = driveFilesCache.filter((f) => !isFileProcessed(f.id));
+  const targets = unprocessed.slice(0, 10);
+
+  if (!targets.length) { toast('未文字起こしのファイルはありません'); return; }
 
   btn.disabled = true;
   listBtn.disabled = true;
   let ok = 0, fail = 0;
 
-  crtLog(`>> BATCH START: ${targets.length}件を順番に処理(バックグラウンドジョブ)`, 'warn');
+  crtLog(`>> BATCH START: 未文字起こし${targets.length}件を順番に処理(バックグラウンドジョブ)`, 'warn');
 
   for (let i = 0; i < targets.length; i++) {
     const f = targets[i];
@@ -2335,7 +2341,7 @@ async function runAllDrive() {
 
   btn.disabled = false;
   listBtn.disabled = false;
-  btn.textContent = `▶▶ 全部まとめて実行(先頭${targets.length}件・順番に処理)`;
+  btn.textContent = `▶▶ 未文字起こし先頭${targets.length}件・順番に処理`;
 
   crtLog(`>> BATCH COMPLETE: 成功${ok}件 / 失敗${fail}件`, fail === 0 ? 'ok' : 'warn');
   toast(`一括処理完了: 成功${ok} / 失敗${fail} (結果はHISTORYに保存済み)`);
