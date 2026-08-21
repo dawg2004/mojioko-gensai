@@ -2280,12 +2280,22 @@ async function bgTranscribeDriveFile(fileId, fileName) {
   } catch (e) {
     crtLog(`>> BG JOB ERR: ${e.message}`, 'err');
     const isDailyLimit = /seconds of audio per day|ASPD/i.test(e.message);
+    const isHourlyLimit = /seconds of audio per hour|ASH/i.test(e.message);
     if (isDailyLimit) {
       const waitMatch = e.message.match(/try again in ([\dhms.]+)/i);
       showError(
-        `⚠️ 音声処理の1日の上限に達しました\n` +
-        `Groq無料枠は1日に処理できる音声の長さに上限があり、今日の分を使い切りました。` +
-        (waitMatch ? `目安として あと${waitMatch[1]} で回復するとGroqから案内されています。` : '') +
+        `⚠️ Groq無料枠「1日あたり」の上限に達しました(1時間あたりの上限とは別の枠です)\n` +
+        `1日に処理できる音声の合計時間(8時間分)を使い切りました。` +
+        (waitMatch ? `Groqの案内では、あと${waitMatch[1]}ほどで多少の枠が戻る見込みですが、` : '') +
+        `完全な回復には最大24時間かかることがあります。` +
+        `\nこれまで処理できた分はGoogle Driveに保存済みです。時間を置いてから続きを実行してください。`
+      );
+    } else if (isHourlyLimit) {
+      const waitMatch = e.message.match(/try again in ([\dhms.]+)/i);
+      showError(
+        `⚠️ Groq無料枠「1時間あたり」の上限に達しました\n` +
+        `画面上部の使用量メーター(120分/時間)の枠を使い切りました。` +
+        (waitMatch ? `あと${waitMatch[1]}ほどで回復します。` : '毎時リセットなので、しばらく待てば回復します。') +
         `\nこれまで処理できた分はGoogle Driveに保存済みです。時間を置いてから続きを実行してください。`
       );
     } else {
