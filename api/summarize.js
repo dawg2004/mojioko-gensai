@@ -5,7 +5,7 @@
 // テキストをチャンクに分割 → 各チャンクを個別要約 → 最後にまとめて統合要約する
 // 2段階方式にする。
 
-const TPM_SAFE_CHARS = 12000; // openai/gpt-oss-120bのTPM上限(8000)に合わせて安全マージンを取った文字数
+const TPM_SAFE_CHARS = 6000; // 日本語は1文字≒1トークンに近いため、TPM上限(8000)に対して大きめのマージンを取る
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
