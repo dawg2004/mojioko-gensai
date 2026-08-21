@@ -65,7 +65,19 @@ module.exports = async function handler(req, res) {
         max_tokens: maxTokens,
       }),
     });
-    const data = await groqRes.json();
+
+    const rawBody = await groqRes.text();
+    let data;
+    try {
+      data = JSON.parse(rawBody);
+    } catch (parseErr) {
+      // Groq側が一時的にJSON以外(エラーページ等)を返してきたケース。
+      // リトライで回復する可能性があるので、リトライ対象として扱う。
+      const err = new Error(`GROQ_NON_JSON_RESPONSE: ${rawBody.slice(0, 200)}`);
+      err.status = groqRes.status || 502;
+      throw err;
+    }
+
     if (!groqRes.ok) {
       const err = new Error(data.error?.message || 'GROQ_ERROR');
       err.status = groqRes.status;
@@ -85,7 +97,8 @@ module.exports = async function handler(req, res) {
         return await callGroqOnce(systemPrompt, userContent, maxTokens);
       } catch (e) {
         const isRateLimit = e.status === 429 || /rate limit/i.test(e.message);
-        if (!isRateLimit || attempt === 3) throw e;
+        const isTransient = /GROQ_NON_JSON_RESPONSE/.test(e.message) || e.status === 502 || e.status === 503;
+        if ((!isRateLimit && !isTransient) || attempt === 3) throw e;
 
         const m = e.message.match(/try again in ([\d.]+)s/i);
         let waitMs = m ? Math.ceil(parseFloat(m[1]) * 1000) + 500 : 5000;
