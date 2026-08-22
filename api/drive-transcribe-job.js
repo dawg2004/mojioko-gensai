@@ -210,7 +210,10 @@ async function findExistingProgress(drive, folderId, baseName) {
   }
   const m = target.name.match(/_進行中_(\d+)of(\d+)\.txt$/);
   const resumeIndex = m ? parseInt(m[1], 10) : 0;
-  return { driveFileId: target.id, currentName: target.name, combinedText: text, resumeIndex, isDone: false };
+  // 既存の進行中コンテンツがタイムスタンプ付きかどうかを本文から推定する
+  // (先頭のヘッダー行を除いた本文に [HH:MM:SS] パターンがあるかで判定)
+  const detectedFormat = /\[\d{2}:\d{2}:\d{2}\]/.test(text) ? 'timestamp' : 'text';
+  return { driveFileId: target.id, currentName: target.name, combinedText: text, resumeIndex, isDone: false, detectedFormat };
 }
 
 module.exports = async function handler(req, res) {
@@ -280,7 +283,18 @@ module.exports = async function handler(req, res) {
 
     // 0. 既に進行中/完了済みの結果ファイルがないか確認(あれば続きから再開)
     //    forceRedo指定時は出力フォーマット変更などのため完全にゼロから作り直す
-    const existing = forceRedo ? null : await findExistingProgress(drive, saveFolderId, baseName);
+    let existing = forceRedo ? null : await findExistingProgress(drive, saveFolderId, baseName);
+
+    // 進行中ファイルが見つかっても、フォーマット(text/timestamp)が今回の指定と
+    // 食い違っている場合は「続きから再開」すると出力が混在してしまうため、
+    // 再開扱いにせず最初からやり直す(既存ファイルは上書き対象として引き継ぐ)
+    const requestedFormat = withTimestamp ? 'timestamp' : 'text';
+    if (existing && !existing.isDone && existing.detectedFormat !== requestedFormat) {
+      driveState.driveFileId = existing.driveFileId;
+      driveState.currentName = existing.currentName;
+      existing = null;
+    }
+
     if (existing && existing.isDone) {
       return res.status(200).json({
         status: 'done',
