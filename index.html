@@ -1984,9 +1984,9 @@ function getProcessedMap() {
   }
 }
 
-function markFileProcessed(fileId, fileName) {
+function markFileProcessed(fileId, fileName, format) {
   const map = getProcessedMap();
-  map[fileId] = { name: fileName, at: new Date().toISOString() };
+  map[fileId] = { name: fileName, at: new Date().toISOString(), format: format || 'text' };
   localStorage.setItem(PROCESSED_KEY, JSON.stringify(map));
   renderProcessedFiles();
   syncAppStateToDrive();
@@ -2004,8 +2004,9 @@ function renderProcessedFiles() {
   el.innerHTML = entries.map(([fileId, info]) => {
     const d = new Date(info.at);
     const dateStr = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    const tsBadge = info.format === 'timestamp' ? '[T]' : '';
     return `<div class="history-item" onclick="loadProcessedFileText('${fileId}', '${info.name.replace(/'/g, "\\'")}')" style="cursor:pointer;">
-      <div class="history-item-meta">${dateStr}<br>済</div>
+      <div class="history-item-meta">${dateStr}<br>済${tsBadge}</div>
       <div class="history-item-preview">${info.name}</div>
       <button class="history-item-del" onclick="event.stopPropagation(); deleteProcessedFile('${fileId}')" title="記録削除">✕</button>
     </div>`;
@@ -2133,7 +2134,7 @@ function renderDriveListFiltered(query) {
     const size = f.size ? fmtSize(Number(f.size)) : '—';
     const processed = getProcessedMap()[f.id];
     const badge = processed
-      ? `<span style="color:var(--green-bright, #3fb950); font-size:11px; margin-right:6px; white-space:nowrap;">✓済 (${formatProcessedDate(processed.at)})</span>`
+      ? `<span style="color:var(--green-bright, #3fb950); font-size:11px; margin-right:6px; white-space:nowrap;">✓済${processed.format === 'timestamp' ? '[T]' : ''} (${formatProcessedDate(processed.at)})</span>`
       : '';
     const div = document.createElement('div');
     div.className = 'recording-item';
@@ -2240,6 +2241,7 @@ async function bgTranscribeDriveFile(fileId, fileName) {
   startPolling();
 
   try {
+    const outFormat = document.getElementById('respFmt') ? document.getElementById('respFmt').value : 'text';
     const res = await fetch('/api/drive-transcribe-job', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2248,7 +2250,7 @@ async function bgTranscribeDriveFile(fileId, fileName) {
         fileName,
         saveFolderId: DRIVE_UPLOAD_FOLDER_ID,
         lang: document.getElementById('langSelect') ? document.getElementById('langSelect').value : 'ja',
-        format: document.getElementById('respFmt') ? document.getElementById('respFmt').value : 'text',
+        format: outFormat,
         forceRedo: isFileProcessed(fileId), // 済みファイルの再実行は新フォーマットで完全に作り直す
       }),
     });
@@ -2281,7 +2283,7 @@ async function bgTranscribeDriveFile(fileId, fileName) {
     } else {
       crtLog(`>> BG JOB DONE: ${data.savedFile.name} をDriveに保存しました`, 'ok');
       toast(`完了: ${data.savedFile.name} をDriveに保存しました`);
-      markFileProcessed(fileId, fileName);
+      markFileProcessed(fileId, fileName, outFormat);
       notifyJobDone(fileName, true);
       if (btn) { btn.disabled = false; btn.textContent = '✓ 完了(Driveに保存済み)'; }
       // 済バッジをその場で反映(一覧の手動更新なしで即座に見えるように)
