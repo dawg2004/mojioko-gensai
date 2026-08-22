@@ -81,6 +81,17 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'EXPECTED_MULTIPART_OR_JSON' });
     }
 
+    // Groqのレート制限ヘッダーをそのまま転送(フロント側でメーター表示に使う)
+    const passthroughHeaders = [
+      'x-ratelimit-remaining-requests', 'x-ratelimit-limit-requests',
+      'x-ratelimit-remaining-audio-seconds-day', 'x-ratelimit-limit-audio-seconds-day',
+      'x-ratelimit-remaining-audio-seconds-hour', 'x-ratelimit-limit-audio-seconds-hour',
+    ];
+    for (const h of passthroughHeaders) {
+      const v = groqRes.headers.get(h);
+      if (v !== null) res.setHeader(h, v);
+    }
+
     const respContentType = groqRes.headers.get('content-type') || '';
     if (respContentType.includes('application/json')) {
       const data = await groqRes.json();

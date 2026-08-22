@@ -96,7 +96,30 @@ function extractDateFromFileName(fileName) {
   return dateOnly ? dateOnly[0] : null;
 }
 
-async function transcribeSegmentWithRetry(apiKey, filePath, lang, withTimestamp, timeOffsetSec) {
+// Groqのレスポンスヘッダーから実際の残り枠情報を取り出す
+// (ドキュメントには載っていないヘッダー名の可能性もあるため、
+//  複数の候補名を試し、無ければnullを返す=フロント側は目安表示にフォールバック)
+function extractRateLimitInfo(headers) {
+  const get = (...names) => {
+    for (const n of names) {
+      const v = headers.get(n);
+      if (v !== null) return v;
+    }
+    return null;
+  };
+  const info = {
+    remainingRequests: get('x-ratelimit-remaining-requests'),
+    limitRequests: get('x-ratelimit-limit-requests'),
+    remainingAudioSecondsDay: get('x-ratelimit-remaining-audio-seconds-day', 'x-ratelimit-remaining-aspd'),
+    limitAudioSecondsDay: get('x-ratelimit-limit-audio-seconds-day', 'x-ratelimit-limit-aspd'),
+    remainingAudioSecondsHour: get('x-ratelimit-remaining-audio-seconds-hour', 'x-ratelimit-remaining-ash'),
+    limitAudioSecondsHour: get('x-ratelimit-limit-audio-seconds-hour', 'x-ratelimit-limit-ash'),
+  };
+  const hasAny = Object.values(info).some((v) => v !== null);
+  return hasAny ? info : null;
+}
+
+async function transcribeSegmentWithRetry(apiKey, filePath, lang, withTimestamp, timeOffsetSec, onRateLimitInfo) {
   for (let attempt = 1; attempt <= GROQ_MAX_RETRIES; attempt++) {
     try {
       const form = new FormData();
@@ -111,6 +134,11 @@ async function transcribeSegmentWithRetry(apiKey, filePath, lang, withTimestamp,
         headers: { Authorization: `Bearer ${apiKey}` },
         body: form,
       });
+
+      if (onRateLimitInfo) {
+        const info = extractRateLimitInfo(res.headers);
+        if (info) onRateLimitInfo(info);
+      }
 
       if (!res.ok) {
         const raw = await res.text();
@@ -297,6 +325,7 @@ module.exports = async function handler(req, res) {
       combinedText = `【ファイル】${fileName}${dateStr ? `\n【日時】${dateStr}` : ''}\n${'─'.repeat(40)}\n`;
     }
     let processedCount = existing ? existing.resumeIndex : 0;
+    let latestRateLimitInfo = null;
     const startIndexThisRun = processedCount;
     let ranOutOfTime = false;
 
@@ -307,7 +336,9 @@ module.exports = async function handler(req, res) {
       }
       const segPath = path.join(workDir, segments[i]);
       const timeOffsetSec = i * SEGMENT_SECONDS;
-      const text = await transcribeSegmentWithRetry(groqKey, segPath, lang, withTimestamp, timeOffsetSec);
+      const text = await transcribeSegmentWithRetry(groqKey, segPath, lang, withTimestamp, timeOffsetSec, (info) => {
+        latestRateLimitInfo = info;
+      });
       combinedText += (combinedText ? '\n' : '') + text.trim();
       processedCount++;
       fs.unlinkSync(segPath); // 使い終わったら即削除してディスク節約
@@ -332,6 +363,7 @@ module.exports = async function handler(req, res) {
       audioSecondsProcessedThisRun: (processedCount - startIndexThisRun) * SEGMENT_SECONDS,
       savedFile: { id: driveState.driveFileId, name: driveState.currentName, webViewLink: driveState.webViewLink },
       charCount: combinedText.length,
+      rateLimitInfo: latestRateLimitInfo,
     });
   } catch (e) {
     // 失敗時も、それまでに何か処理できていればDriveには残っているはず

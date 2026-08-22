@@ -2274,6 +2274,7 @@ async function bgTranscribeDriveFile(fileId, fileName) {
 
     // このバックグラウンドジョブ呼び出しで実際に処理した音声秒数をメーターに加算
     if (data.audioSecondsProcessedThisRun) addUsedSeconds(data.audioSecondsProcessedThisRun);
+    if (data.rateLimitInfo) applyRealRateLimitInfo(data.rateLimitInfo);
 
     if (data.status === 'partial') {
       crtLog(`>> BG JOB PARTIAL: ${data.processedSegments}/${data.totalSegments}件 処理 → ${data.savedFile.name} に保存`, 'warn');
@@ -2546,6 +2547,33 @@ function addUsedSeconds(secs) {
   updateUsageMeter();
 }
 // 次のUTC 0時(=このアプリの想定リセット時刻)を、利用者のローカル時刻表記で返す
+// Groqから実際に返ってきたレート制限ヘッダー(取得できた場合のみ)。
+// 取得できていればこちらを優先表示し、無ければ従来の自己計測の目安を使う。
+let realRateLimit = { hour: null, day: null, updatedAt: null };
+
+function applyRealRateLimitInfo(info) {
+  if (!info) return;
+  let changed = false;
+  if (info.remainingAudioSecondsHour != null && info.limitAudioSecondsHour != null) {
+    realRateLimit.hour = {
+      remaining: parseFloat(info.remainingAudioSecondsHour),
+      limit: parseFloat(info.limitAudioSecondsHour),
+    };
+    changed = true;
+  }
+  if (info.remainingAudioSecondsDay != null && info.limitAudioSecondsDay != null) {
+    realRateLimit.day = {
+      remaining: parseFloat(info.remainingAudioSecondsDay),
+      limit: parseFloat(info.limitAudioSecondsDay),
+    };
+    changed = true;
+  }
+  if (changed) {
+    realRateLimit.updatedAt = Date.now();
+    updateUsageMeter();
+  }
+}
+
 function nextUtcResetLocalString() {
   const now = new Date();
   const nextUtcMidnight = new Date(Date.UTC(
@@ -2556,22 +2584,28 @@ function nextUtcResetLocalString() {
   });
 }
 function updateUsageMeter() {
-  const used = getUsedSeconds();
-  const pct = Math.min(used / GROQ_DAILY_LIMIT * 100, 100);
-  const remaining = Math.max(GROQ_DAILY_LIMIT - used, 0);
-
-  const usedDay = getUsedSecondsDay();
-  const pctDay = Math.min(usedDay / GROQ_DAY_LIMIT * 100, 100);
-  const remainingDay = Math.max(GROQ_DAY_LIMIT - usedDay, 0);
-
   const fmtMin = s => {
     const m = Math.floor(s / 60), sec = Math.floor(s % 60);
     return m > 0 ? `${m}m${sec > 0 ? sec + 's' : ''}` : `${sec}s`;
   };
 
+  // 実測値が新しければ(直近10分以内)それを優先、無ければ自己計測の目安を使う
+  const hasRealHour = realRateLimit.hour && (Date.now() - realRateLimit.updatedAt < 600000);
+  const hasRealDay = realRateLimit.day && (Date.now() - realRateLimit.updatedAt < 600000);
+
+  const used = hasRealHour ? (realRateLimit.hour.limit - realRateLimit.hour.remaining) : getUsedSeconds();
+  const limitH = hasRealHour ? realRateLimit.hour.limit : GROQ_DAILY_LIMIT;
+  const pct = Math.min(used / limitH * 100, 100);
+  const remaining = Math.max(limitH - used, 0);
+
+  const usedDay = hasRealDay ? (realRateLimit.day.limit - realRateLimit.day.remaining) : getUsedSecondsDay();
+  const limitD = hasRealDay ? realRateLimit.day.limit : GROQ_DAY_LIMIT;
+  const pctDay = Math.min(usedDay / limitD * 100, 100);
+  const remainingDay = Math.max(limitD - usedDay, 0);
+
   const numEl  = document.getElementById('usageNumbers');
   const barEl  = document.getElementById('usageBarFill');
-  numEl.textContent = `使用 ${fmtMin(used)} / 残り ${fmtMin(remaining)}`;
+  numEl.textContent = `使用 ${fmtMin(used)} / 残り ${fmtMin(remaining)}${hasRealHour ? ' (実測)' : ' (目安)'}`;
 
   const warn = pct >= 70;
   const over = pct >= 95;
@@ -2583,7 +2617,7 @@ function updateUsageMeter() {
   const barDayEl = document.getElementById('usageBarFillDay');
   const noteDayEl = document.getElementById('usageNoteDay');
   if (numDayEl && barDayEl) {
-    numDayEl.textContent = `使用 ${fmtMin(usedDay)} / 残り ${fmtMin(remainingDay)}`;
+    numDayEl.textContent = `使用 ${fmtMin(usedDay)} / 残り ${fmtMin(remainingDay)}${hasRealDay ? ' (実測)' : ' (目安)'}`;
     const warnDay = pctDay >= 70;
     const overDay = pctDay >= 95;
     numDayEl.className = 'usage-numbers' + (overDay ? ' over' : warnDay ? ' warn' : '');
@@ -2816,6 +2850,18 @@ function audioBufferSliceToWav(audioBuffer, startSec, endSec) {
 }
 
 // 1チャンクをGroqに送信して文字起こしテキストを取得
+// fetchのResponseからGroqのレート制限ヘッダーを読み取り、メーターに反映する
+function applyRateLimitHeadersFromResponse(res) {
+  const get = (n) => res.headers.get(n);
+  const info = {
+    remainingAudioSecondsHour: get('x-ratelimit-remaining-audio-seconds-hour'),
+    limitAudioSecondsHour: get('x-ratelimit-limit-audio-seconds-hour'),
+    remainingAudioSecondsDay: get('x-ratelimit-remaining-audio-seconds-day'),
+    limitAudioSecondsDay: get('x-ratelimit-limit-audio-seconds-day'),
+  };
+  if (Object.values(info).some((v) => v !== null)) applyRealRateLimitInfo(info);
+}
+
 async function transcribeChunkBlob(blob, idx, lang, groqFmt) {
   const form = new FormData();
   form.append('file', blob, `chunk_${idx}.wav`);
@@ -2824,6 +2870,7 @@ async function transcribeChunkBlob(blob, idx, lang, groqFmt) {
   if (lang !== 'auto') form.append('language', lang);
 
   const res = await fetch('/api/whisper', { method: 'POST', body: form });
+  applyRateLimitHeadersFromResponse(res);
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     const raw = await res.text();
@@ -3009,6 +3056,7 @@ async function execute() {
       });
 
       animProgress(80, 100, 400);
+      applyRateLimitHeadersFromResponse(res);
 
       if (!res.ok) {
         let msg = `HTTP ${res.status}`;
